@@ -1,0 +1,17 @@
+included:
+  - App
+  - ForewarnKit/Sources
+  - ForewarnKit/Tests
+  - UITests
+excluded:
+  - ForewarnKit/.build
+
+# SwiftFormat owns layout; these rules disagree with it.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - identifier_name
+
+line_length:
+  warning: 120
+  error: 160

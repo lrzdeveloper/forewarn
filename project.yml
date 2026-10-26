@@ -1,0 +1,68 @@
+# Source of truth for Forewarn.xcodeproj (gitignored). Regenerate with `make generate`
+# after editing this file or adding/removing files under App/.
+name: Forewarn
+
+options:
+  bundleIdPrefix: io.github.lrzdeveloper
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  ForewarnKit:
+    path: ForewarnKit
+
+targets:
+  Forewarn:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Forewarn.xcconfig
+      Release: Forewarn.xcconfig
+    sources:
+      - App
+    dependencies:
+      - package: ForewarnKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.lrzdeveloper.forewarn
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Forewarn
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_LSUIElement: YES
+        ENABLE_HARDENED_RUNTIME: YES
+
+  ForewarnUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    configFiles:
+      Debug: Forewarn.xcconfig
+      Release: Forewarn.xcconfig
+    sources:
+      - UITests
+    dependencies:
+      - target: Forewarn
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.lrzdeveloper.forewarn.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Forewarn
+
+schemes:
+  Forewarn:
+    build:
+      targets:
+        Forewarn: all
+    test:
+      targets:
+        - package: ForewarnKit/ForewarnKitTests
+        - ForewarnUITests
