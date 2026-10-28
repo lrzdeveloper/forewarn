@@ -1,0 +1,6 @@
+// Shared signing defaults: ad-hoc ("Sign to Run Locally"), so a fresh clone builds without a team.
+// Per-developer overrides (DEVELOPMENT_TEAM, CODE_SIGN_IDENTITY) go in Forewarn.local.xcconfig (gitignored).
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = -
+
+#include? "Forewarn.local.xcconfig"

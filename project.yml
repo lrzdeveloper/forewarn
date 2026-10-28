@@ -1,0 +1,84 @@
+# Source of truth for Forewarn.xcodeproj (gitignored). Regenerate with `make generate`
+# after editing this file or adding/removing files under App/.
+name: Forewarn
+
+options:
+  bundleIdPrefix: io.github.lrzdeveloper
+  developmentLanguage: en
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+    # The compiler extracts every localizable string (Text, Button, String(localized:)) into the String Catalog.
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  ForewarnKit:
+    path: ForewarnKit
+
+targets:
+  Forewarn:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Forewarn.xcconfig
+      Release: Forewarn.xcconfig
+    sources:
+      - App
+      # Layered Icon Composer icon; actool compiles it and derives the dark, clear and tinted variants.
+      - path: Assets/Forewarn.icon
+        type: file
+        buildPhase: resources
+      # Shown in Settings › About.
+      - path: LICENSE
+        type: file
+        buildPhase: resources
+      - path: CHANGELOG.md
+        type: file
+        buildPhase: resources
+    dependencies:
+      - package: ForewarnKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.lrzdeveloper.forewarn
+        ASSETCATALOG_COMPILER_APPICON_NAME: Forewarn
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Forewarn
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_LSUIElement: YES
+        ENABLE_HARDENED_RUNTIME: YES
+
+  ForewarnUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    configFiles:
+      Debug: Forewarn.xcconfig
+      Release: Forewarn.xcconfig
+    sources:
+      - UITests
+    dependencies:
+      - target: Forewarn
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.lrzdeveloper.forewarn.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Forewarn
+
+schemes:
+  Forewarn:
+    build:
+      targets:
+        Forewarn: all
+    test:
+      targets:
+        - package: ForewarnKit/ForewarnKitTests
+        - ForewarnUITests

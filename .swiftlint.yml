@@ -1,0 +1,26 @@
+included:
+  - App
+  - ForewarnKit/Sources
+  - ForewarnKit/Tests
+  - UITests
+excluded:
+  - ForewarnKit/.build
+
+# SwiftFormat owns layout; these rules disagree with it.
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - identifier_name
+
+line_length:
+  warning: 120
+  error: 160
+
+# Value types namespaced under Overview (Overview.Forecast.Point) are two levels deep by design.
+nesting:
+  type_level: 2
+
+# Sample data builders read better as one block.
+function_body_length:
+  warning: 80
+  error: 120

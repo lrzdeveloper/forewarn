@@ -1,0 +1,35 @@
+name: CI
+
+# The full suite runs locally before every push (`make check` via the pre-push hook, see `make hooks`).
+# CI only covers what skips that hook: pull requests (Dependabot included) and manual runs.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: macos-26
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+
+      - name: Install tools
+        run: brew install xcodegen swiftlint swiftformat
+
+      - name: Lint, test, build, UI tests
+        run: make check
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcresult
+          path: build/Logs/Test/*.xcresult
