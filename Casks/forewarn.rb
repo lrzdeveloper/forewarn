@@ -1,6 +1,6 @@
 cask "forewarn" do
-  version "1.0.0"
-  sha256 "14f1a25cb541845cec740ab1195a475815e64f51ae8c50d4f29b2a941263dc14"
+  version "1.1.0"
+  sha256 "a480fc6d828dd60f76b2b37d74c833a3b1b87525e9327abb41a25051ac34a04d"
 
   url "https://github.com/lrzdeveloper/forewarn/releases/download/v#{version}/Forewarn-#{version}.dmg"
   name "Forewarn"

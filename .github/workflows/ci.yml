@@ -13,6 +13,10 @@ concurrency:
 jobs:
   ci:
     runs-on: macos-26
+    # make check runs the code it checks out: the token only reads. A hung UI test stops here, not at six hours.
+    permissions:
+      contents: read
+    timeout-minutes: 45
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
     steps:
@@ -20,6 +24,14 @@ jobs:
 
       - name: Show toolchain
         run: xcodebuild -version && swift --version
+
+      # Downloads only: brew install still runs, and installs from them when they are current.
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: brew-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Install tools
         run: brew install xcodegen swiftlint swiftformat

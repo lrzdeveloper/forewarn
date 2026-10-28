@@ -83,13 +83,47 @@ struct TimestralEngineTests {
         #expect(q[21...].allSatisfy { $0 == 0 })
     }
 
-    @Test func clampsymAveragesTheReflectedMirrorAndClipsNonNegativeSeries() {
+    @Test func clampsymAveragesTheReflectedMirrorAndClipsNonNegativeSeries() throws {
         let q = (0 ..< 21).map { Float($0) - 2 } // one step
         let mirrored = q.reversed().map { -$0 + 2 } // the mirror forecast of the same series, offset by 2
-        let clipped = Timestral.clampsym(q, mirrored, target: [1, .nan, 3])
+        let clipped = try Timestral.clampsym(q, mirrored, target: [1, .nan, 3])
         #expect(clipped.map(\.[0]) == (0 ..< 21).map { max(0, Double($0) - 3) })
-        let signed = Timestral.clampsym(q, mirrored, target: [-1, 3])
+        let signed = try Timestral.clampsym(q, mirrored, target: [-1, 3])
         #expect(signed.map(\.[0]) == (0 ..< 21).map { Double($0) - 3 })
+    }
+
+    @Test func clampsymDoesNotOverflowNearTheTopOfFloat() throws {
+        let q = [Float](repeating: 2e38, count: 21), mirrored = [Float](repeating: -2e38, count: 21)
+        #expect(try Timestral.clampsym(q, mirrored, target: [1]).allSatisfy { $0 == [Double(Float(2e38))] })
+        let infinite = [Float](repeating: .infinity, count: 21)
+        #expect(throws: TimestralEngine.Failure.nonFinite) {
+            try Timestral.clampsym(infinite, mirrored, target: [1])
+        }
+    }
+
+    @Test func aModelWithAnotherOutputShapeIsRejected() throws {
+        try TimestralEngine.Core.check([2, 64, 21], patches: 2)
+        for shape in [[2, 32, 21], [1, 64, 21], [2, 64, 20], [2, 64]] {
+            #expect(throws: TimestralEngine.Failure.self) { try TimestralEngine.Core.check(shape, patches: 2) }
+        }
+    }
+
+    @Test func horizonsOfZeroAndBelow() async throws {
+        let engine = TimestralEngine(modelURL: URL(fileURLWithPath: "/nonexistent/Timestral.mlpackage"))
+        #expect(try await engine.forecast(ForecastRequest(target: [50], horizon: 0)) == .empty)
+        await #expect(throws: ForecastError.negativeHorizon) {
+            _ = try await engine.forecast(ForecastRequest(target: [50], horizon: -1))
+        }
+    }
+
+    /// The only observation lies before the model's context: nothing left to forecast from.
+    @Test(.enabled(if: TimestralEngine.installed() != nil, "needs the model make model installs"))
+    func observationsOutsideTheContextDoNotCount() async throws {
+        let engine = try #require(TimestralEngine.installed())
+        let target = [50] + [Double](repeating: .nan, count: BatteryForecaster.context)
+        await #expect(throws: TimestralEngine.Failure.noObservations) {
+            _ = try await engine.forecast(ForecastRequest(target: target, horizon: 144))
+        }
     }
 
     @Test func missingModelThrowsSoTheCallerCanFallBack() async {

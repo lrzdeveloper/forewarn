@@ -26,11 +26,30 @@ struct BatteryChart: View {
 
     private var now: Date { battery.forecast?.start ?? battery.history.last?.date ?? .now }
 
+    /// The times the forecast covers, when there is one.
+    private var forecastSpan: ClosedRange<Date>? {
+        guard let first = points.first?.date, let last = points.last?.date else { return nil }
+        return first ... last
+    }
+
+    /// The usual plug-in when the forecast reaches it: only then is there a level to mark it at. Later than that,
+    /// the legend still gives its time.
+    private var plugInWithinForecast: Date? {
+        battery.usualPlugIn.flatMap { forecastSpan?.contains($0) == true ? $0 : nil }
+    }
+
+    /// What the chart spans: when it changes (a forecast gone on plugging in, a new one), a time picked before may
+    /// lie outside it.
+    private var coverage: [Date?] {
+        [battery.history.first?.date, battery.history.last?.date, points.first?.date, points.last?.date]
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             readout
             chart
                 .frame(height: 140)
+                .onChange(of: coverage) { selection = nil }
             if !points.isEmpty {
                 legend
             }
@@ -51,11 +70,15 @@ struct BatteryChart: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Only what the chart has for that time: never the current level under a time it does not cover.
     private func readoutValue(at date: Date) -> String {
-        if date > now, let p = nearest(points, to: date, \.date) {
+        if date > now {
+            guard forecastSpan?.contains(date) == true, let p = nearest(points, to: date, \.date) else { return "–" }
             return String(localized: "\(pct(p.median)) expected · likely \(pct(p.low))–\(pct(p.high))")
         }
-        if date < now, let s = nearest(battery.history, to: date, \.date) {
+        if date < now {
+            guard let first = battery.history.first, date >= first.date,
+                  let s = nearest(battery.history, to: date, \.date) else { return "–" }
             return String(localized: "\(pct(s.value)) measured")
         }
         return pct(battery.percent)
@@ -95,7 +118,7 @@ struct BatteryChart: View {
                 .foregroundStyle(Color.secondary.opacity(0.6))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
 
-            if let plugIn = battery.usualPlugIn, let p = nearest(points, to: plugIn, \.date) {
+            if let plugIn = plugInWithinForecast, let p = nearest(points, to: plugIn, \.date) {
                 RuleMark(x: .value("Usual plug-in", plugIn))
                     .foregroundStyle(Color.secondary.opacity(0.35))
                 PointMark(x: .value("Usual plug-in", plugIn), y: .value("Expected level", p.median))
@@ -247,9 +270,24 @@ extension BatteryChart: @MainActor AXChartDescriptorRepresentable {
             name: String(localized: "Expected"), isContinuous: true,
             dataPoints: points.map { .init(x: $0.date.timeIntervalSince1970, y: $0.median) }
         )
+        // The band the chart shades, as its two edges: the likely range is half of what the forecast says.
+        let low = AXDataSeriesDescriptor(
+            name: String(localized: "Likely low"), isContinuous: true,
+            dataPoints: points.map { .init(x: $0.date.timeIntervalSince1970, y: $0.low) }
+        )
+        let high = AXDataSeriesDescriptor(
+            name: String(localized: "Likely high"), isContinuous: true,
+            dataPoints: points.map { .init(x: $0.date.timeIntervalSince1970, y: $0.high) }
+        )
+        // The reading now and the usual plug-in, which the chart marks and the last sample need not equal.
+        let now = pct(battery.percent)
+        let summary = battery.usualPlugIn.map { $0.formatted(date: .omitted, time: .shortened) }.map {
+            String(localized: "Now \(now). Usual plug-in \($0).")
+        } ?? String(localized: "Now \(now).")
         return AXChartDescriptor(
             title: String(localized: "Battery level, measured and expected"),
-            summary: nil, xAxis: x, yAxis: y, additionalAxes: [], series: [measured, expected]
+            summary: summary, xAxis: x, yAxis: y, additionalAxes: [],
+            series: [measured, expected] + (points.isEmpty ? [] : [low, high])
         )
     }
 }

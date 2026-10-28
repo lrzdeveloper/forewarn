@@ -141,9 +141,9 @@ struct HealthPage: View {
                     .tint(Color.primary.opacity(0.75)) // 3:1 against the card for indicators
                     .accessibilityHidden(true)
             }
-            if let outlook = detail.outlook {
-                let perDay = outlook.cyclesPerDay.formatted(.number.precision(.fractionLength(1)))
-                let perYear = Int(outlook.cyclesPerYear.rounded()).formatted()
+            if let cyclesPerDay = detail.outlook?.cyclesPerDay {
+                let perDay = cyclesPerDay.formatted(.number.precision(.fractionLength(1)))
+                let perYear = Int((cyclesPerDay * 365).rounded()).formatted()
                 Text("About \(perDay) cycles a day, \(perYear) a year.")
                     .font(.subheadline)
                     .foregroundStyle(.subdued)
@@ -353,9 +353,19 @@ extension HealthChart: @MainActor AXChartDescriptorRepresentable {
             name: String(localized: "Expected"), isContinuous: true,
             dataPoints: path.map { .init(x: $0.date.timeIntervalSince1970, y: $0.median) }
         )
+        // The shaded band, as its two edges.
+        let low = AXDataSeriesDescriptor(
+            name: String(localized: "Likely low"), isContinuous: true,
+            dataPoints: path.map { .init(x: $0.date.timeIntervalSince1970, y: $0.low) }
+        )
+        let high = AXDataSeriesDescriptor(
+            name: String(localized: "Likely high"), isContinuous: true,
+            dataPoints: path.map { .init(x: $0.date.timeIntervalSince1970, y: $0.high) }
+        )
         return AXChartDescriptor(
             title: String(localized: "Maximum Capacity, measured and expected"),
-            summary: summary, xAxis: x, yAxis: y, additionalAxes: [], series: [measured, expected]
+            summary: summary, xAxis: x, yAxis: y, additionalAxes: [],
+            series: [measured, expected] + (path.isEmpty ? [] : [low, high])
         )
     }
 }

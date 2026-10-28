@@ -32,6 +32,18 @@ struct AppLanguage: Identifiable, Hashable {
     ]
     .map { AppLanguage(code: $0.0, flag: $0.1) }
     .sorted { $0.nativeName.localizedCompare($1.nativeName) == .orderedAscending }
+
+    /// The language Forewarn offers for a stored code, which System Settings or `defaults` may write with a region
+    /// ("de-DE"): matched the way macOS picks a localization, and only within the same language. Nil when Forewarn
+    /// is not translated into it.
+    static func supported(_ code: String) -> AppLanguage? {
+        if let exact = all.first(where: { $0.code == code }) {
+            return exact
+        }
+        let match = Bundle.preferredLocalizations(from: all.map(\.code), forPreferences: [code]).first
+        let language = Locale(identifier: code).language.languageCode
+        return all.first { $0.code == match && Locale(identifier: $0.code).language.languageCode == language }
+    }
 }
 
 /// The app's language. Stored where System Settings › General › Language & Region › Applications stores it (the
@@ -57,22 +69,36 @@ enum LanguageChoice {
         }
     }
 
-    /// The system's own language, as Forewarn would show it.
+    /// The system's own language, as Forewarn would show it. Read from the global domain: `Locale.preferredLanguages`
+    /// starts with this app's own choice once one is set.
     static var systemName: String {
+        let system = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?[key] as? [String]
         let preferred = Bundle.preferredLocalizations(
-            from: Bundle.main.localizations, forPreferences: Locale.preferredLanguages
+            from: Bundle.main.localizations, forPreferences: system ?? Locale.preferredLanguages
         ).first ?? "en"
         return AppLanguage.all.first { $0.code == preferred }?.nativeName ?? preferred
     }
 
-    /// Starts a new instance, then quits this one: the new instance reads the language at launch.
+    /// Starts a new instance, then quits this one: the new instance reads the language at launch. If macOS could
+    /// not start it, this one keeps running and `failed` runs, so the caller can say so and offer it again.
     @MainActor
-    static func relaunch() {
+    static func relaunch(failed: @escaping @MainActor () -> Void) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
-            DispatchQueue.main.async { NSApplication.shared.terminate(nil) }
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { app, error in
+            let started = app != nil && error == nil
+            Task { @MainActor in
+                if started {
+                    NSApplication.shared.terminate(nil)
+                } else {
+                    failed()
+                }
+            }
         }
+    }
+
+    static var restartFailedMessage: String {
+        String(localized: "Forewarn couldn't restart. Try again, or quit Forewarn and open it again.")
     }
 }
 
@@ -87,7 +113,7 @@ struct LanguagePicker: View {
         Button { open.toggle() } label: {
             HStack(spacing: 6) {
                 LanguageMark(language: language)
-                Text(language?.nativeName ?? String(localized: "Same as System"))
+                Text(name)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.subdued)
@@ -98,12 +124,21 @@ struct LanguagePicker: View {
             LanguageList(selection: $selection) { open = false }
         }
         .accessibilityLabel(Text("Language"))
-        .accessibilityValue(Text(language?.nativeName ?? String(localized: "Same as System")))
+        .accessibilityValue(Text(name))
         .accessibilityIdentifier("languagePicker")
     }
 
     private var language: AppLanguage? {
-        selection.flatMap { code in AppLanguage.all.first { $0.code == code } }
+        selection.flatMap(AppLanguage.supported)
+    }
+
+    /// A choice Forewarn has no translation for (set outside it) is still a choice: named, not shown as the system.
+    private var name: String {
+        if let language {
+            return language.nativeName
+        }
+        guard let selection else { return String(localized: "Same as System") }
+        return Locale.current.localizedString(forIdentifier: selection) ?? selection
     }
 }
 
@@ -148,7 +183,8 @@ private struct LanguageList: View {
                     }
                     ForEach(matches) { language in
                         LanguageRow(
-                            language: language, detail: language.localizedName, selected: selection == language.code
+                            language: language, detail: language.localizedName,
+                            selected: selection.flatMap(AppLanguage.supported) == language
                         ) { pick(language.code) }
                     }
                     if matches.isEmpty, !systemMatches {
@@ -164,14 +200,12 @@ private struct LanguageList: View {
         .onAppear { searching = true }
     }
 
+    /// Return picks the first row shown: "Same as System" whenever it is listed, then the first language.
     private func pickFirst() {
-        if systemMatches, query.isEmpty {
-            return
-        }
-        if let first = matches.first {
-            pick(first.code)
-        } else if systemMatches {
+        if systemMatches {
             pick(nil)
+        } else if let first = matches.first {
+            pick(first.code)
         }
     }
 

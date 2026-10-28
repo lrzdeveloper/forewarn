@@ -3,6 +3,11 @@ public protocol ForecastEngine: Sendable {
     func forecast(_ request: ForecastRequest) async throws -> QuantileForecast
 }
 
+public enum ForecastError: Error, Equatable {
+    /// A horizon below zero steps.
+    case negativeHorizon
+}
+
 public struct ForecastRequest: Sendable, Equatable {
     /// Target series on a regular grid; `.nan` marks a missing sample.
     public var target: [Double]
@@ -10,6 +15,7 @@ public struct ForecastRequest: Sendable, Equatable {
     public var pastCovariates: [[Double]]
     /// One series per covariate (hour-of-day, day-of-week, on-AC), `horizon` steps long.
     public var futureCovariates: [[Double]]
+    /// Steps to forecast. Engines throw `ForecastError.negativeHorizon` below zero and answer 21 empty rows at zero.
     public var horizon: Int
 
     public init(target: [Double], pastCovariates: [[Double]] = [], futureCovariates: [[Double]] = [], horizon: Int) {
@@ -34,6 +40,9 @@ public struct QuantileForecast: Sendable, Equatable {
     }
 
     public var horizon: Int { values.first?.count ?? 0 }
+
+    /// The answer to a horizon of zero.
+    static let empty = QuantileForecast(values: Array(repeating: [], count: levels.count))
 
     public var median: [Double] { values[10] }
 

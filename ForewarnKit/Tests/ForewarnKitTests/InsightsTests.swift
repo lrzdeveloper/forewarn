@@ -67,6 +67,27 @@ struct ThresholdTests {
         #expect(Thresholds.steps(Array(repeating: note(.health, .dismissed), count: 3)) == [:])
     }
 
+    @Test func anUndeliveredWarningIsNoFeedback() {
+        let d = note(.battery, .dismissed), lost = note(.battery, .undelivered)
+        #expect(Thresholds.steps([d, d, lost, d])[.battery] == 1) // does not break the run
+    }
+
+    @Test func anUndeliveredWarningIsTriedAgainABoundedNumberOfTimes() throws {
+        let store = try Store(path: nil), insight = Insight.dataRunsOut(at: monday, usedBytes: 15e9, limitBytes: 20e9)
+        func refused(_ count: Int) -> [SentNotification] {
+            (0 ..< count).map {
+                SentNotification(id: Int64($0), kind: .data, date: monday + Double($0) * 300, action: .undelivered,
+                                 details: [:])
+            }
+        }
+        let now = monday + 3600
+        #expect(try Insights.allowed(insight, log: refused(2), store: store, now: now))
+        #expect(try !Insights.allowed(insight, log: refused(3), store: store, now: now))
+        #expect(try Insights.allowed(insight, log: refused(3), store: store, now: monday + 86400 + 900))
+        let shown = SentNotification(id: 9, kind: .data, date: monday, action: nil, details: [:])
+        #expect(try !Insights.allowed(insight, log: [shown] + refused(1), store: store, now: now))
+    }
+
     @Test func detailsRoundTrip() {
         let all: [Insight] = [
             .batteryLow(at: monday, plugIn: monday + 3600, chance: 0.7),
@@ -130,17 +151,25 @@ struct InsightRuleTests {
         #expect(free == 50e9 && folder == "/Caches" && growth == 6e9)
     }
 
+    /// A sleep and its wake with the battery levels and power source the recorder stores with them.
+    func night(_ store: Store, from start: Date, to end: Date, _ before: String, _ after: String, onAC: Bool = false,
+               blockers: String = "") throws
+    {
+        let power = onAC ? 1.0 : 0
+        try store.record([Reading(.onAC, power, at: start - 60)], events: [
+            Event(.sleep, at: start, ["percent": before, "blockers": blockers]),
+        ])
+        try store.record([Reading(.onAC, power, at: end)], events: [Event(.wake, at: end, ["percent": after])])
+    }
+
     @Test func sleepFiresOnAnUnusualNightRightAfterWaking() throws {
         let store = try store()
         // Five ordinary nights: 2 points over 8 hours.
         for night in 0 ..< 5 {
             let start = monday.addingTimeInterval(Double(night) * 86400 + 23 * 3600)
-            try store.record(Event(.sleep, at: start, ["percent": "90", "blockers": ""]))
-            try store.record(Event(.wake, at: start + 8 * 3600, ["percent": "88"]))
+            try self.night(store, from: start, to: start + 8 * 3600, "90", "88")
         }
-        let start = now - 9 * 3600
-        try store.record(Event(.sleep, at: start, ["percent": "90", "blockers": "Docker, sharingd"]))
-        try store.record(Event(.wake, at: now - 600, ["percent": "70"]))
+        try night(store, from: now - 9 * 3600, to: now - 600, "90", "70", blockers: "Docker, sharingd")
         let due = try Insights.due(InsightContext(now: now, battery: nil, forecast: nil, disk: nil), store: store)
         #expect(due == [.sleepDrain(
             lost: 20,
@@ -151,6 +180,25 @@ struct InsightRuleTests {
         // Hours later the moment has passed.
         let later = InsightContext(now: now + 3 * 3600, battery: nil, forecast: nil, disk: nil)
         #expect(try Insights.due(later, store: store).isEmpty)
+    }
+
+    @Test func nightsOnPowerAreNoBaseline() throws {
+        let store = try store()
+        // Five nights plugged in at 100%: no drain, but not a baseline either.
+        for night in 0 ..< 5 {
+            let start = monday.addingTimeInterval(Double(night) * 86400 + 23 * 3600)
+            try self.night(store, from: start, to: start + 8 * 3600, "100", "100", onAC: true)
+        }
+        // A night unplugged halfway: not a sleep on battery throughout.
+        let start = monday.addingTimeInterval(5 * 86400 + 23 * 3600)
+        try night(store, from: start, to: start + 8 * 3600, "90", "85")
+        try store.record(Event(.unplug, at: start + 3600))
+        #expect(try SleepSession.all(store: store).isEmpty)
+        // An ordinary night on battery, 1.5 points an hour: with no baseline, nothing unusual.
+        try night(store, from: now - 9 * 3600, to: now - 600, "90", "77")
+        #expect(try SleepSession.all(store: store).count == 1)
+        #expect(try Insights.due(InsightContext(now: now, battery: nil, forecast: nil, disk: nil), store: store)
+            .isEmpty)
     }
 
     @Test func dataFiresOnlyWithALimit() throws {
@@ -191,7 +239,7 @@ struct InsightRuleTests {
         let outlook = try #require(try HealthOutlook.estimate(
             store: store, maximumCapacity: 100, fullChargePercent: 100, cycleCount: 0, designCycleCount: 1000, now: now
         ))
-        #expect(abs(outlook.cyclesPerDay - 0.5) < 0.01)
+        #expect(abs((outlook.cyclesPerDay ?? 0) - 0.5) < 0.01)
         // Apple's design wear: 0.02 points per cycle, 0.01 a day: 96.35% in a year, 80% in 2,000 days.
         #expect(abs(outlook.inOneYear - 96.35) < 0.1)
         #expect(abs((outlook.reaches80At ?? now).timeIntervalSince(now) / 86400 - 2000) < 30)
@@ -211,5 +259,21 @@ struct InsightRuleTests {
         let young = try self.store()
         try young.record(Array(readings.suffix(30)))
         #expect(try HealthTrend.reaches80(store: young, now: now) == nil)
+    }
+}
+
+struct DaylightSavingTests {
+    @Test func aDailyPlugInKeepsItsClockTimeAcrossTheSpringChange() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Rome"))
+        func at(_ day: Int, _ hour: Int) throws -> Date {
+            try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: day, hour: hour)))
+        }
+        // Plugged in at 18:00 every day from 1 March; summer time starts on 29 March.
+        let plugIns = try (1 ... 31).map { try at($0, 18) }
+        let now = try at(31, 12)
+        let habit = try PlugInHabit(plugIns: plugIns, historyStart: at(1, 0), now: now, calendar: calendar)
+        let median = try #require(habit.plugInTime(from: now))
+        #expect(median.timeIntervalSince(now) == 6 * 3600)
     }
 }

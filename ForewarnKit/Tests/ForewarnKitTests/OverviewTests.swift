@@ -90,3 +90,32 @@ struct OverviewTests {
         #expect(Overview.sample(now: now, state: .plugged).battery?.isHeldAtLimit == true)
     }
 }
+
+struct ReviewedEdgesTests {
+    let now = Date(timeIntervalSince1970: 1_760_000_400)
+
+    func shortfall(at times: [Date], now: Date) -> Overview.ChargerShortfall? {
+        Overview.ChargerShortfall.detect(
+            amperage: times.map { Reading(.amperage, -400, at: $0) }, onAC: times.map { Reading(.onAC, 1, at: $0) },
+            status: BatteryStatus(percent: 60, isCharging: false, isOnAC: true, fullChargeCapacity: 5000),
+            adapterWatts: 30, now: now
+        )
+    }
+
+    @Test func chargerShortfallNeedsMinutesOfEvidenceAndNoFutureReadings() {
+        #expect(shortfall(at: [now - 600, now - 60], now: now) != nil)
+        #expect(shortfall(at: [now - 70, now - 60], now: now) == nil) // around a wake: seconds apart
+        #expect(shortfall(at: [now + 60, now + 660], now: now) == nil) // dated after now
+        #expect(shortfall(at: [now - 60, now - 660].reversed(), now: now) != nil)
+    }
+
+    @Test func anExhaustedAllowanceNeedsAttentionWithoutAForecast() {
+        let data = Overview.MeteredData(usedBytes: 20_000_000_000, limitBytes: 20_000_000_000, resetDate: now + 86400)
+        #expect(data.runsOutAt == nil && data.runsOutBeforeReset)
+        #expect(Overview(meteredData: data).needsAttention)
+        // The pace says the same from the first hour of the period.
+        let period = DateInterval(start: now - 3600, duration: 30 * 86400)
+        #expect(MeteredPace.runsOutAt(used: 20e9, limit: 20e9, period: period, now: now) == now)
+        #expect(MeteredPace.runsOutAt(used: 1e9, limit: 20e9, period: period, now: now) == nil)
+    }
+}

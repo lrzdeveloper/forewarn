@@ -76,7 +76,11 @@ struct StatusRows: View {
         if health.serviceRecommended {
             return String(localized: "macOS recommends service.")
         }
-        if let at = health.reaches80At, at.timeIntervalSinceNow < 2 * 365 * 86400 {
+        // Already there: no forecast to give, and "80% around" this month would read as still to come.
+        if health.maximumCapacity <= 80 {
+            return String(localized: "Below 80%, the usual service threshold.")
+        }
+        if let at = health.reaches80At, at > .now, at.timeIntervalSinceNow < 2 * 365 * 86400 {
             let when = at.formatted(.dateTime.month(.wide).year())
             return String(localized: "At this pace, 80% around \(when).")
         }
@@ -243,6 +247,17 @@ struct StatStrip: View {
             Text(stat.value)
                 .figure(.title3)
                 .fixedSize()
+        }
+    }
+}
+
+/// Where the chart will be. Not the hourglass: that is Forewarn's mark, and means nothing else.
+struct LearningCard: View {
+    var body: some View {
+        Module(title: "Still learning your habits", symbol: "chart.line.downtrend.xyaxis") {
+            Text("The chart appears after about 3 days on battery.")
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

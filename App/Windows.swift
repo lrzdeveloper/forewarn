@@ -31,6 +31,11 @@ final class KeepsVerticalCentre {
     private var size: CGSize = .zero
     private var observers: [NSObjectProtocol] = []
 
+    /// NotificationCenter keeps block observers until they are removed, whatever their closures capture.
+    isolated deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
     func attach(_ window: NSWindow) {
         midY = window.frame.midY
         size = window.frame.size

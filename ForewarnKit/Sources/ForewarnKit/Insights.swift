@@ -91,6 +91,8 @@ public struct SentNotification: Sendable, Equatable {
         case opened
         /// Closed without taking an action: three in a row raise the threshold one step.
         case dismissed
+        /// Notification Center refused it: never shown, so neither a delivery for the rate limiter nor feedback.
+        case undelivered
     }
 
     public var id: Int64
@@ -124,7 +126,7 @@ public enum Thresholds {
                     steps[note.kind] = min((steps[note.kind] ?? 0) + 1, 2)
                     run[note.kind] = 0
                 }
-            } else if note.action != nil {
+            } else if note.action != nil, note.action != .undelivered {
                 run[note.kind] = 0
             }
         }
@@ -180,8 +182,14 @@ public enum Insights {
     // MARK: Rate limiter
 
     /// One per kind per day; F1 once per discharge session; F5 once a month.
+    /// A warning Notification Center refused does not count, so the next check tries again; after
+    /// `maximumUndelivered` refusals in a day they count as a delivery, so a broken center isn't retried every tick.
     static func allowed(_ insight: Insight, log: [SentNotification], store: Store, now: Date) throws -> Bool {
-        let sameKind = log.filter { $0.kind == insight.kind }
+        var sameKind = log.filter { $0.kind == insight.kind }
+        let refused = sameKind.filter { $0.action == .undelivered && now.timeIntervalSince($0.date) < 86400 }
+        if refused.count < maximumUndelivered {
+            sameKind.removeAll { $0.action == .undelivered }
+        }
         guard let last = sameKind.last else { return true }
         switch insight.kind {
         case .battery:
@@ -193,6 +201,8 @@ public enum Insights {
             return now.timeIntervalSince(last.date) >= 86400
         }
     }
+
+    static let maximumUndelivered = 3
 
     // MARK: Rules
 
@@ -275,7 +285,8 @@ public enum Insights {
     /// six months. Health is System Settings' "Maximum Capacity".
     static func health(_ c: InsightContext, store: Store) throws -> Insight? {
         guard let current = try store.latest(.maximumCapacity)?.value else { return nil }
-        let previous = try store.notifications().last { $0.kind == .health }?.details["percent"].flatMap(Double.init)
+        let previous = try store.notifications().last { $0.kind == .health && $0.action != .undelivered }?
+            .details["percent"].flatMap(Double.init)
         if let previous, previous - current >= 2 {
             return .batteryHealth(percent: current, previous: previous)
         }
@@ -294,10 +305,17 @@ struct SleepSession: Equatable {
     var hours: Double { end.timeIntervalSince(start) / 3600 }
     var perHour: Double { lost / max(hours, 1e-9) }
 
-    /// Sleeps of at least half an hour on battery. A level that rose means the Mac charged meanwhile: skipped.
+    /// Sleeps of at least half an hour on battery throughout: on battery when it went to sleep and when it woke, with
+    /// no plug-in or unplug in between (a night on power at 100% is no zero-drain baseline). Read from the stored
+    /// power source, so 1.0's history counts too. A level that rose means the Mac charged meanwhile: skipped.
     static func all(store: Store) throws -> [SleepSession] {
         var sessions: [SleepSession] = []
         var pending: Event?
+        let power = try store.series(.onAC)
+        let switches = try store.events().filter { $0.kind == .plugIn || $0.kind == .unplug }.map(\.date)
+        func onAC(at date: Date) -> Bool {
+            power.last { $0.date <= date }.map { $0.value > 0.5 } ?? false
+        }
         for event in try store.events() where event.kind == .sleep || event.kind == .wake {
             if event.kind == .sleep {
                 pending = event
@@ -306,7 +324,9 @@ struct SleepSession: Equatable {
             defer { pending = nil }
             guard let sleep = pending, let before = sleep.details["percent"].flatMap(Double.init),
                   let after = event.details["percent"].flatMap(Double.init),
-                  event.date.timeIntervalSince(sleep.date) >= 1800, after <= before else { continue }
+                  event.date.timeIntervalSince(sleep.date) >= 1800, after <= before,
+                  !onAC(at: sleep.date), !onAC(at: event.date),
+                  !switches.contains(where: { $0 > sleep.date && $0 <= event.date }) else { continue }
             let blockers = sleep.details["blockers"]?.split(separator: ",").map {
                 $0.trimmingCharacters(in: .whitespaces)
             } ?? []

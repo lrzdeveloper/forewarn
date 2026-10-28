@@ -60,7 +60,7 @@ struct DiskPage: View {
         if let full = disk.fullDate {
             return String(localized: "Full \(full.formatted(.relative(presentation: .named))).")
         }
-        if detail.history.count < 7 {
+        if DiskTrend.isLearning(dates: detail.history.map(\.date)) {
             return String(localized: "Learning how fast it fills.")
         }
         return String(localized: "Not filling up at the pace of the last 30 days.")
@@ -134,7 +134,8 @@ private struct DiskChart: View {
         }
     }
 
-    private var top: Double { ((detail.history + projection).map(\.value).max() ?? 1) * 1.15 }
+    /// Never zero: a full disk still needs an axis with room on it.
+    private var top: Double { max(1, ((detail.history + projection).map(\.value).max() ?? 0) * 1.15) }
 
     var body: some View {
         Chart {

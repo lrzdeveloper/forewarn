@@ -14,26 +14,56 @@ public enum DiskSpace {
         return (Double(free), Double(total))
     }
 
-    /// Allocated size and newest access date of everything under `folder` (disk suggestions).
-    public static func usage(of folder: URL) -> (bytes: Double, lastOpened: Date?)? {
+    /// Allocated size and newest access date of everything under `folder` (disk suggestions); `nil` when
+    /// the folder itself can't be read. Items that can't be (a protected subfolder, a file without a size) are
+    /// counted in `unreadable`: the total is then a floor, not the folder's size.
+    public static func usage(of folder: URL) -> FolderUsage? {
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .contentAccessDateKey, .isRegularFileKey]
-        guard FileManager.default.fileExists(atPath: folder.path),
-              let files = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys)
-        else {
-            return nil
-        }
-        var bytes = 0.0
-        var newest: Date?
+        guard (try? folder.checkResourceIsReachable()) == true,
+              (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) != nil else { return nil }
+        let unreadable = Counter()
+        guard let files = FileManager.default.enumerator(
+            at: folder, includingPropertiesForKeys: keys, errorHandler: { _, _ in
+                unreadable.value += 1
+                return true // skip it, keep going
+            }
+        ) else { return nil }
+        var usage = FolderUsage(bytes: 0, lastOpened: nil, unreadable: 0)
         for case let url as URL in files {
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)) else {
+                usage.unreadable += 1
                 continue
             }
-            bytes += Double(values.totalFileAllocatedSize ?? 0)
-            if let opened = values.contentAccessDate, opened > newest ?? .distantPast {
-                newest = opened
+            guard values.isRegularFile == true else { continue }
+            guard let size = values.totalFileAllocatedSize else {
+                usage.unreadable += 1
+                continue
+            }
+            usage.bytes += Double(size)
+            if let opened = values.contentAccessDate, opened > usage.lastOpened ?? .distantPast {
+                usage.lastOpened = opened
             }
         }
-        return (bytes, newest)
+        usage.unreadable += unreadable.value
+        return usage
+    }
+
+    /// The enumerator's error handler is an escaping closure: it counts here.
+    private final class Counter: @unchecked Sendable {
+        var value = 0
+    }
+}
+
+public struct FolderUsage: Sendable, Equatable {
+    public var bytes: Double
+    public var lastOpened: Date?
+    /// Items that could not be read: when above zero, `bytes` is a floor.
+    public var unreadable: Int
+
+    public init(bytes: Double, lastOpened: Date?, unreadable: Int = 0) {
+        self.bytes = bytes
+        self.lastOpened = lastOpened
+        self.unreadable = unreadable
     }
 }
 
@@ -48,11 +78,14 @@ public enum NetworkCounters {
         guard sysctl(&mib, 6, &buffer, &length, nil, 0) == 0 else { return [:] }
         var totals: [String: UInt64] = [:]
         buffer.withUnsafeBytes { raw in
+            let end = min(length, raw.count)
             var offset = 0
-            while offset + MemoryLayout<if_msghdr>.size <= length {
+            while offset + MemoryLayout<if_msghdr>.size <= end {
                 let header = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr.self)
-                guard header.ifm_msglen > 0 else { break }
-                if Int32(header.ifm_type) == RTM_IFINFO2 {
+                let size = Int(header.ifm_msglen)
+                // A record that claims less than its header or runs past the buffer: stop, read nothing past it.
+                guard size >= MemoryLayout<if_msghdr>.size, offset + size <= end else { break }
+                if Int32(header.ifm_type) == RTM_IFINFO2, size >= MemoryLayout<if_msghdr2>.size {
                     let message = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
                     var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE))
                     if if_indextoname(UInt32(message.ifm_index), &name) != nil {
@@ -62,7 +95,7 @@ public enum NetworkCounters {
                         }
                     }
                 }
-                offset += Int(header.ifm_msglen)
+                offset += size
             }
         }
         return totals
@@ -92,11 +125,28 @@ public enum SleepBlockers {
         var assertions: Unmanaged<CFDictionary>?
         guard IOPMCopyAssertionsByProcess(&assertions) == kIOReturnSuccess,
               let byProcess = assertions?.takeRetainedValue() as? [NSNumber: [[String: Any]]] else { return [] }
+        return names(byProcess) { pid in
+            var buffer = [CChar](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
+            guard proc_name(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+            return String(bytes: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8)
+        }
+    }
+
+    /// The names behind assertions that are on (level 255; 0 is held but off) and keep the system awake.
+    /// The dictionaries are keyed by PID; the name comes from the assertion when it has one, else from the PID.
+    static func names(_ byProcess: [NSNumber: [[String: Any]]], name: (Int32) -> String?) -> [String] {
         let keepsAwake: Set = ["PreventSystemSleep", "PreventUserIdleSystemSleep", "NoIdleSleepAssertion"]
-        let names = byProcess.values.joined()
-            .filter { keepsAwake.contains($0["AssertType"] as? String ?? "") }
-            .compactMap { $0["Process Name"] as? String }
-        return Array(Set(names)).sorted()
+        var names: Set<String> = []
+        for (pid, assertions) in byProcess {
+            let blocking = assertions.filter {
+                keepsAwake.contains($0["AssertType"] as? String ?? "") && ($0["AssertLevel"] as? Int ?? 0) != 0
+            }
+            guard !blocking.isEmpty else { continue }
+            if let found = blocking.lazy.compactMap({ $0["Process Name"] as? String }).first ?? name(pid.int32Value) {
+                names.insert(found)
+            }
+        }
+        return names.sorted()
     }
 }
 

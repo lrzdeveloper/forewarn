@@ -17,7 +17,7 @@ struct BaselineEngineTests {
     }
 
     @Test func followsTheDrainAndIgnoresTopUps() async throws {
-        let (target, onAC) = sawtooth(count: 1000)
+        let (target, onAC) = sawtooth(count: 1050) // ends on battery, at 51%
         let engine = BaselineEngine(step: 300, nextStepDate: now)
         let forecast = try await engine.forecast(ForecastRequest(target: target, pastCovariates: [onAC], horizon: 20))
         let last = try #require(target.last { !$0.isNaN })
@@ -48,6 +48,38 @@ struct BaselineEngineTests {
         #expect(forecast.horizon == 5)
         #expect(forecast.median.allSatisfy { $0 < 79 })
         #expect(forecast.values[0][4] < forecast.values[20][4])
+    }
+
+    @Test func aSeriesEndingInMissingStepsForecastsFromTheNextStep() async throws {
+        // Observed 100 then 99; two steps unknown since: the next step is 96, not 98.
+        let forecast = try await BaselineEngine(step: 300, nextStepDate: now)
+            .forecast(ForecastRequest(target: [100, 99, .nan, .nan], horizon: 3))
+        #expect(forecast.median.map { ($0 * 1e6).rounded() / 1e6 } == [96, 95, 94])
+    }
+
+    @Test func pastErrorsStopAtTopUps() async throws {
+        // A steady drain of 1% a step, topped up to 100 on power every 100 steps. Forecasts that ran across a
+        // top-up and were scored against the recharged level would read as a gain and widen the band; scored
+        // only up to the break, the drain is forecast exactly and the band stays tight.
+        let (target, onAC) = sawtooth(count: 2000)
+        let forecast = try await BaselineEngine(step: 300, nextStepDate: now)
+            .forecast(ForecastRequest(target: target, pastCovariates: [onAC], horizon: 40))
+        for k in 0 ..< 40 {
+            #expect(forecast.values[20][k] - forecast.values[0][k] < 0.01)
+            #expect(forecast.median[k] < forecast.median[max(k - 1, 0)] || k == 0)
+        }
+    }
+
+    @Test func horizonsOfZeroAndBelow() async throws {
+        let engine = BaselineEngine(step: 300, nextStepDate: now)
+        #expect(try await engine.forecast(ForecastRequest(target: [80, 79], horizon: 0)) == .empty)
+        #expect(try await engine.forecast(ForecastRequest(target: [], horizon: 0)) == .empty)
+        await #expect(throws: ForecastError.negativeHorizon) {
+            _ = try await engine.forecast(ForecastRequest(target: [80, 79], horizon: -1))
+        }
+        await #expect(throws: ForecastError.negativeHorizon) {
+            _ = try await engine.forecast(ForecastRequest(target: [.nan], horizon: -1))
+        }
     }
 
     @Test func normalQuantileMatchesKnownValues() {
@@ -162,6 +194,47 @@ struct BatteryForecasterTests {
         #expect(off?.start == now + 1500 && off?.quantiles.median[0] == 30)
     }
 
+    /// A store whose engine choice is Timestral, so `loadTimestral` answers.
+    func timestralStore() throws -> Store {
+        let store = try store(days: 5)
+        let better = Backtest.Score(relativeMAE: 0.5, wql: 0.01, origins: 10)
+        let worse = Backtest.Score(relativeMAE: 0.4, wql: 0.02, origins: 10)
+        try store
+            .record(EngineChoice.decide(baseline: worse, timestral: better, at: now - 60)
+                .event(metric: .batteryPercent))
+        return store
+    }
+
+    @Test func aRunOverlappingAPlugInDoesNotBringItsForecastBack() async throws {
+        let gate = Gate()
+        let forecaster = try BatteryForecaster(store: timestralStore()) { HeldEngine(gate: gate) }
+        let battery = BatteryStatus(percent: 70, isCharging: false, isOnAC: false)
+        async let running = forecaster.update(battery: battery, now: now)
+        await gate.entered()
+        var plugged = battery
+        plugged.isOnAC = true
+        #expect(try await forecaster.update(battery: plugged, now: now + 60) == nil)
+        await gate.release()
+        #expect(try await running == nil)
+    }
+
+    @Test func runsAtMostEveryFifteenMinutesWhateverCameOfThem() async throws {
+        let forecaster = try BatteryForecaster(store: store(days: 5))
+        let battery = BatteryStatus(percent: 70, isCharging: false, isOnAC: false)
+        #expect(try await forecaster.update(battery: battery, now: now) != nil)
+        var plugged = battery
+        plugged.isOnAC = true
+        #expect(try await forecaster.update(battery: plugged, now: now + 60) == nil)
+        // Unplugged again a minute later: no new run yet, and the old forecast is gone.
+        #expect(try await forecaster.update(battery: battery, now: now + 120) == nil)
+        #expect(try await forecaster.update(battery: battery, now: now + 960) != nil)
+
+        // A run that finds too little history counts as an attempt too.
+        let young = try BatteryForecaster(store: store(days: 2))
+        #expect(try await young.update(battery: battery, now: now) == nil)
+        #expect(try await young.update(battery: battery, now: now + 300) == nil)
+    }
+
     @Test func weeklyChoiceKeepsTheBaselineWithoutTheModel() async throws {
         let store = try store(days: 5)
         let forecaster = BatteryForecaster(store: store)
@@ -191,33 +264,6 @@ struct BatteryForecasterTests {
         async let c: Void = forecaster.evaluateIfDue(onAC: true, now: now)
         _ = try await (a, b, c)
         #expect(try store.events(kind: .engineChoice).count == 1)
-    }
-}
-
-struct TrendTests {
-    let now = Date(timeIntervalSince1970: 1_760_000_400)
-
-    @Test func diskFillsWhereTheLineCrossesZero() {
-        // 100 GB free, losing 2 GB a day for 10 days: 80 GB left, 40 days to go.
-        let free = (0 ... 10).map { Reading(.diskFree, 100e9 - Double($0) * 2e9, at: now - Double(10 - $0) * 86400) }
-        let full = try? #require(DiskTrend.fullDate(free: free, now: now))
-        #expect(abs((full ?? .distantPast).timeIntervalSince(now) - 40 * 86400) < 60)
-        #expect(DiskTrend.fullDate(free: Array(free.suffix(3)), now: now) == nil) // under a week
-        let growing = free.map { Reading(.diskFree, 200e9 - $0.value, at: $0.date) }
-        #expect(DiskTrend.fullDate(free: growing, now: now) == nil)
-    }
-
-    @Test func meteredPaceAndPeriod() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .gmt
-        let mid = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 20, hour: 12)))
-        let period = MeteredPace.period(resetDay: 5, now: mid, calendar: calendar)
-        #expect(period.start == calendar.date(from: DateComponents(year: 2026, month: 10, day: 5)))
-        #expect(period.end == calendar.date(from: DateComponents(year: 2026, month: 11, day: 5)))
-        // 15.5 days in, 15.5 GB used: 1 GB a day reaches 20 GB on day 20, before the reset.
-        let out = try #require(MeteredPace.runsOutAt(used: 15.5e9, limit: 20e9, period: period, now: mid))
-        #expect(abs(out.timeIntervalSince(period.start) - 20 * 86400) < 1)
-        #expect(MeteredPace.runsOutAt(used: 5e9, limit: 20e9, period: period, now: mid) == nil)
     }
 }
 
@@ -261,5 +307,42 @@ struct HistoryBacktestTests {
         ) { _ in engine })
         print("timestral on a week: origins \(score.origins),", "relative MAE \(score.relativeMAE), WQL \(score.wql)")
         #expect(score.origins > 0)
+    }
+}
+
+/// Lets a test hold an engine mid-forecast.
+actor Gate {
+    private var isEntered = false, isOpen = false
+    private var enterWaiters: [CheckedContinuation<Void, Never>] = [],
+                openWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func enter() async {
+        isEntered = true
+        enterWaiters.forEach { $0.resume() }
+        enterWaiters = []
+        if !isOpen {
+            await withCheckedContinuation { openWaiters.append($0) }
+        }
+    }
+
+    func entered() async {
+        if !isEntered {
+            await withCheckedContinuation { enterWaiters.append($0) }
+        }
+    }
+
+    func release() {
+        isOpen = true
+        openWaiters.forEach { $0.resume() }
+        openWaiters = []
+    }
+}
+
+/// Answers a flat 50% once its gate opens.
+struct HeldEngine: ForecastEngine {
+    let gate: Gate
+    func forecast(_ request: ForecastRequest) async throws -> QuantileForecast {
+        await gate.enter()
+        return QuantileForecast(values: Array(repeating: Array(repeating: 50, count: request.horizon), count: 21))
     }
 }

@@ -18,6 +18,7 @@ struct OnboardingView: View {
 
     @State private var page = UserDefaults.standard.bool(forKey: resumeKey) ? Page.welcome : Page.language
     @State private var language = LanguageChoice.current
+    @State private var restartFailed = false
     @AppStorage(SettingsKey.onboarded) private var onboarded = false
     @Environment(\.dismiss) private var dismiss
 
@@ -35,6 +36,13 @@ struct OnboardingView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("onboardingPage-\(page)")
 
+            if restartFailed {
+                Text(LanguageChoice.restartFailedMessage)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 12)
+            }
             Divider()
             HStack {
                 PageDots(count: Page.allCases.count, current: page.rawValue)
@@ -49,7 +57,13 @@ struct OnboardingView: View {
                         LanguageChoice.set(language)
                         UserDefaults.standard.set(true, forKey: Self.resumeKey)
                         Self.restarting = true
-                        LanguageChoice.relaunch()
+                        restartFailed = false
+                        LanguageChoice.relaunch {
+                            // Still here: stay on this page, as if Continue had not been pressed.
+                            Self.restarting = false
+                            UserDefaults.standard.removeObject(forKey: Self.resumeKey)
+                            restartFailed = true
+                        }
                     } else if let next = Page(rawValue: page.rawValue + 1) {
                         page = next
                     } else {

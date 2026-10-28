@@ -8,7 +8,7 @@ public struct System: Sendable {
     public var selfEnergy: @Sendable () -> Double?
     public var sleepBlockers: @Sendable () -> [String]
     public var pmsetLog: @Sendable () -> String?
-    public var folderUsage: @Sendable (URL) -> (bytes: Double, lastOpened: Date?)?
+    public var folderUsage: @Sendable (URL) -> FolderUsage?
 
     public static let live = System(
         battery: BatteryStatus.current, disk: DiskSpace.current, network: NetworkCounters.current,
@@ -29,8 +29,10 @@ public actor Recorder {
     private var lastCompaction: Date?
     private var wasOnAC: Bool?
     /// Joules already counted, so each sample stores only what is new. Zero at launch: all of it is new.
+    /// Moves only once a sample is stored: a failed write is counted again by the next one.
     private var countedEnergy = 0.0
-    private var metered: (interface: String, counted: UInt64)?
+    /// The interfaces of the expensive path and their counters at the last stored sample.
+    private var metered: [String: UInt64]?
 
     /// Late background activities still count as on time (the scheduler's tolerance is 60 s).
     static let slack = 60.0
@@ -71,9 +73,7 @@ public actor Recorder {
             try store.compact(now: now)
             lastCompaction = now
         }
-        if battery?.isOnAC ?? true,
-           try now.timeIntervalSince(lastFolderScan(now: now) ?? .distantPast) >= 7 * Store.day
-        {
+        if battery?.isOnAC ?? true {
             try scanFolders(now: now)
         }
         return battery
@@ -87,12 +87,24 @@ public actor Recorder {
         return battery
     }
 
-    /// The network path changed. `interface` is the one in use when macOS marks the path expensive, else `nil`.
-    /// Bytes are counted only while on that interface; the switch itself closes the previous count.
-    public func meteredPathChanged(to interface: String?, now: Date = .now) throws {
-        guard interface != metered?.interface else { return }
+    /// The network path changed. `interfaces` are the ones the path uses when macOS marks it expensive, else empty.
+    /// Bytes are counted only on those; the switch itself closes the previous count.
+    public func meteredPathChanged(to interfaces: Set<String>, now: Date = .now) throws {
+        guard interfaces != metered.map({ Set($0.keys) }) ?? [] else { return }
         try recordMetered(now: now)
-        metered = interface.map { ($0, system.network()[$0] ?? 0) }
+        let totals = system.network()
+        metered = interfaces.isEmpty ? nil : Dictionary(uniqueKeysWithValues: interfaces.map { ($0, totals[$0] ?? 0) })
+    }
+
+    /// Everything was deleted (Settings › Privacy): what is counted from now on starts from now.
+    public func reset() {
+        lastBattery = nil
+        lastHourly = nil
+        lastCompaction = nil
+        wasOnAC = nil
+        countedEnergy = system.selfEnergy() ?? 0
+        let totals = system.network()
+        metered = metered.map { Dictionary(uniqueKeysWithValues: $0.keys.map { ($0, totals[$0] ?? 0) }) }
     }
 
     public func willSleep(now: Date = .now) throws {
@@ -115,18 +127,19 @@ public actor Recorder {
     }
 
     /// First launch only: import the week of history `pmset` keeps, with the plug-ins and unplugs inside it.
+    /// One transaction, so an import cut short leaves nothing behind and the next launch tries again.
     public func bootstrapIfNeeded() throws {
         guard try store.latest(.batteryPercent) == nil, let log = system.pmsetLog() else { return }
         let readings = PmsetLog.parse(log)
-        try store.record(readings)
-        var previous: Bool?
+        var events: [Event] = [], previous: Bool?
         for reading in readings where reading.metric == .onAC {
             let onAC = reading.value == 1
             if let previous, previous != onAC {
-                try store.record(Event(onAC ? .plugIn : .unplug, at: reading.date, ["source": "pmset"]))
+                events.append(Event(onAC ? .plugIn : .unplug, at: reading.date, ["source": "pmset"]))
             }
             previous = onAC
         }
+        try store.record(readings, events: events)
     }
 
     // MARK: Parts
@@ -135,27 +148,39 @@ public actor Recorder {
         // After a restart, compare with the last stored state: a plug-in or unplug while the app was not running
         // still bounds a session. Its time is then when the app noticed, so it is marked.
         let restarted = wasOnAC == nil
-        if restarted {
-            wasOnAC = try store.latest(.onAC).map { $0.value > 0.5 }
+        let stored = try restarted ? store.latest(.onAC).map { $0.value > 0.5 } : wasOnAC
+        guard let stored, stored != battery.isOnAC else {
+            wasOnAC = battery.isOnAC
+            return
         }
-        defer { wasOnAC = battery.isOnAC }
-        guard let wasOnAC, wasOnAC != battery.isOnAC else { return }
         var details = ["percent": String(battery.percent)]
         if restarted {
             details["noticedAtLaunch"] = "1"
         }
-        try store.record(Event(battery.isOnAC ? .plugIn : .unplug, at: now, details))
-        try store.record(battery.readings(at: now))
+        // The event and its readings together, and the change taken as known only once they are stored: a failed
+        // write is tried again on the next call, never half-done or skipped.
+        try store.record(
+            battery.readings(at: now),
+            events: [Event(battery.isOnAC ? .plugIn : .unplug, at: now, details)]
+        )
+        wasOnAC = battery.isOnAC
         lastBattery = now
     }
 
     private func recordMetered(now: Date) throws {
-        guard let metered, let total = system.network()[metered.interface] else { return }
-        let moved = NetworkCounters.delta(from: metered.counted, to: total)
-        self.metered = (metered.interface, total)
+        guard let metered else { return }
+        let totals = system.network()
+        var moved: UInt64 = 0, counted = metered
+        for (interface, previous) in metered {
+            guard let total = totals[interface] else { continue }
+            moved += NetworkCounters.delta(from: previous, to: total)
+            counted[interface] = total
+        }
         if moved > 0 {
             try store.record([Reading(.meteredBytes, Double(moved), at: now)])
         }
+        // Only once stored: after a failed write the next sample counts these bytes again.
+        self.metered = counted
     }
 
     private func recordHourly(now: Date) throws {
@@ -163,22 +188,27 @@ public actor Recorder {
         if let disk = system.disk() {
             readings += [Reading(.diskFree, disk.free, at: now), Reading(.diskTotal, disk.total, at: now)]
         }
-        if let joules = system.selfEnergy() {
+        let joules = system.selfEnergy()
+        if let joules {
             readings.append(Reading(.selfEnergy, max(joules - countedEnergy, 0), at: now))
-            countedEnergy = joules
         }
         try store.record(readings)
+        if let joules {
+            countedEnergy = joules
+        }
     }
 
-    private func lastFolderScan(now: Date) throws -> Date? {
-        try store.events(since: now.addingTimeInterval(-8 * Store.day), kind: .folderSize).last?.date
-    }
-
+    /// Each folder weekly, from its own last scan: one that failed is tried again on the next tick on power.
     private func scanFolders(now: Date) throws {
-        for folder in Self.scannedFolders {
+        let recent = try store.events(since: now.addingTimeInterval(-7 * Store.day), kind: .folderSize)
+        let scanned = Set(recent.compactMap { $0.details["path"] })
+        for folder in Self.scannedFolders where !scanned.contains(folder.path) {
             guard let usage = system.folderUsage(folder) else { continue }
             var details = ["path": folder.path, "bytes": String(Int64(usage.bytes))]
             details["lastOpened"] = usage.lastOpened.map { ISO8601DateFormatter().string(from: $0) }
+            if usage.unreadable > 0 {
+                details["unreadable"] = String(usage.unreadable) // a partial total: at least this much
+            }
             try store.record(Event(.folderSize, at: now, details))
         }
     }

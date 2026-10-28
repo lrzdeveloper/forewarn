@@ -1,5 +1,6 @@
 import AppKit
 import ForewarnKit
+import os
 import UserNotifications
 
 /// The words of each warning. Title-style titles that carry the news, a sentence or two of why,
@@ -94,6 +95,11 @@ enum NotificationText {
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private let store: Store
     private let center = UNUserNotificationCenter.current()
+    private let log = Logger(subsystem: "io.github.lrzdeveloper.forewarn", category: "notifications")
+    /// What people did with a warning, when storing it failed: tried again on each check, `maximumAttempts` times.
+    /// The feedback loop reads only what is stored, so a lost dismissal would move a threshold silently.
+    private var pendingActions: [PendingAction] = []
+    private static let maximumAttempts = 12 // an hour of 5-minute checks
     /// Opens Settings on a pane ("data" for Adjust Limit). Outside a view there is no `openSettings`; the app menu's
     /// own Settings… item (⌘,) opens the SwiftUI Settings scene the same way.
     private func openSettings(_ pane: String) {
@@ -146,20 +152,22 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Logs and sends each insight. Logged even without permission: the popover lists recent warnings, and the
-    /// rate limiter must not resend what was already decided.
+    /// rate limiter must not resend what was already decided. Logged before the first wait, so a check running
+    /// meanwhile already sees them. One that Notification Center refuses is marked undelivered: the rate limiter
+    /// lets it be tried again.
     func send(_ insights: [Insight], now: Date = .now) async {
-        guard !insights.isEmpty else { return }
+        retryPendingActions()
+        let logged = insights
+            .compactMap { insight in (try? store.logNotification(insight, at: now)).map { (insight, $0) } }
+        guard !logged.isEmpty else { return }
         var settings = await center.notificationSettings()
         if settings.authorizationStatus == .notDetermined {
             _ = try? await center.requestAuthorization(options: [.alert, .sound])
             settings = await center.notificationSettings()
         }
-        for insight in insights {
-            guard let id = try? store.logNotification(insight, at: now),
-                  settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            else {
-                continue
-            }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        else { return }
+        for (insight, id) in logged {
             let content = UNMutableNotificationContent()
             content.title = NotificationText.title(insight)
             content.body = NotificationText.body(insight)
@@ -168,7 +176,36 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             // Only the battery warning makes a sound: it is the one with a deadline today.
             content.sound = insight.kind == .battery ? .default : nil
             content.userInfo = insight.details
-            try? await center.add(UNNotificationRequest(identifier: String(id), content: content, trigger: nil))
+            do {
+                try await center.add(UNNotificationRequest(identifier: String(id), content: content, trigger: nil))
+            } catch {
+                log.error("not delivered: \(error.localizedDescription, privacy: .public)")
+                save(.undelivered, forNotification: id)
+            }
+        }
+    }
+
+    private func save(_ action: SentNotification.Action, forNotification id: Int64) {
+        do {
+            try store.setAction(action, forNotification: id)
+        } catch {
+            log.error("action not saved, will retry: \(error.localizedDescription, privacy: .public)")
+            pendingActions.append(PendingAction(id: id, action: action, attempts: 1))
+        }
+    }
+
+    private func retryPendingActions() {
+        pendingActions = pendingActions.compactMap { pending in
+            do {
+                try store.setAction(pending.action, forNotification: pending.id)
+                return nil
+            } catch {
+                guard pending.attempts + 1 < Self.maximumAttempts else {
+                    log.error("action dropped: \(error.localizedDescription, privacy: .public)")
+                    return nil
+                }
+                return PendingAction(id: pending.id, action: pending.action, attempts: pending.attempts + 1)
+            }
         }
     }
 
@@ -224,7 +261,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         default: nil
         }
         if let id, let recorded {
-            try? store.setAction(recorded, forNotification: id)
+            save(recorded, forNotification: id)
         }
         if recorded == .opened, let kind {
             open(Insight(kind: kind, details: details))
@@ -246,4 +283,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             break
         }
     }
+}
+
+/// A person's response to a warning that could not be stored yet.
+private struct PendingAction {
+    let id: Int64
+    let action: SentNotification.Action
+    let attempts: Int
 }

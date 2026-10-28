@@ -171,6 +171,12 @@ def window_inputs(model, rows: torch.Tensor, observed: torch.Tensor, group_ids, 
     return tensors, anchor_loc, anchor_scale, n
 
 
+def failure(stage: str, e: Exception) -> dict:
+    """What failed and where, for the report; the traceback goes to the console."""
+    traceback.print_exc(limit=3)
+    return {"failed_stage": stage, "error": f"{type(e).__name__}: {str(e).splitlines()[0][:300] if str(e) else ''}"}
+
+
 def convert(module, example: dict[str, torch.Tensor], precision) -> ct.models.MLModel:
     traced = torch.jit.trace(module.eval(), tuple(example.values()), check_trace=False)
     return ct.convert(
@@ -236,24 +242,25 @@ def spike(repo: str, charge: np.ndarray, on_ac: np.ndarray, start: datetime) -> 
 
     report["coreml"] = {}
     for label, precision in [("fp32", ct.precision.FLOAT32), ("fp16", ct.precision.FLOAT16)]:
+        # Each stage can fail on its own (a model that converts may not compile or run): record which, carry on.
+        stage = "convert"
         try:
             mlmodel = convert(core, tensors, precision)
-        except Exception as e:  # noqa: BLE001
-            report["coreml"][label] = f"failed: {type(e).__name__}: {str(e).splitlines()[0][:300]}"
-            traceback.print_exc(limit=3)
-            continue
-        path = OUT / f"{name}-core-{CONTEXT}-{label}.mlpackage"
-        mlmodel.save(str(path))
-        feed = {k: v.numpy() for k, v in tensors.items()}
-        ms, out = timed(lambda: mlmodel.predict(feed))
-        got = torch.from_numpy(out["quantiles"]).double()
-        denorm = denormalize_quantiles(got, anchor_loc, anchor_scale, model.config.use_asinh)
-        report["coreml"][label] = {
-            "predict_ms": ms,
-            "normalized_max_abs": float((got - normalized.double()).abs().max()),
-            "battery_pct_max_abs": float((denorm - expected.double()).abs().max()),
-            "median_battery_pct_max_abs": float((denorm - expected.double())[..., 10].abs().max()),
-        }
+            stage = "save"
+            mlmodel.save(str(OUT / f"{name}-core-{CONTEXT}-{label}.mlpackage"))
+            stage = "predict"
+            feed = {k: v.numpy() for k, v in tensors.items()}
+            ms, out = timed(lambda: mlmodel.predict(feed))
+            got = torch.from_numpy(out["quantiles"]).double()
+            denorm = denormalize_quantiles(got, anchor_loc, anchor_scale, model.config.use_asinh)
+            report["coreml"][label] = {
+                "predict_ms": ms,
+                "normalized_max_abs": float((got - normalized.double()).abs().max()),
+                "battery_pct_max_abs": float((denorm - expected.double()).abs().max()),
+                "median_battery_pct_max_abs": float((denorm - expected.double())[..., 10].abs().max()),
+            }
+        except Exception as e:  # noqa: BLE001 - the failure is the finding
+            report["coreml"][label] = failure(stage, e)
 
     # 2c. Known-future covariates (hour, weekday, on-AC): same core, two-stream window masks.
     kc = torch.as_tensor(known)
@@ -275,23 +282,24 @@ def spike(repo: str, charge: np.ndarray, on_ac: np.ndarray, start: datetime) -> 
     report["coreml_covariates"] = {}
     targets = role_ids == ROLE_TARGET  # only target rows are forecasts
     for label, precision in [("fp32", ct.precision.FLOAT32), ("fp16", ct.precision.FLOAT16)]:
+        stage = "convert"
         try:
             ml = convert(core_c, tensors_c, precision)
+            stage = "save"
+            ml.save(str(OUT / f"{name}-core-cov-{CONTEXT}-{label}.mlpackage"))
+            stage = "predict"
+            feed = {k: v.numpy() for k, v in tensors_c.items()}
+            ms, out = timed(lambda: ml.predict(feed))
+            got = torch.from_numpy(out["quantiles"]).double()
+            denorm = denormalize_quantiles(got, loc_c, scale_c, model.config.use_asinh)
+            diff = (denorm - expected_c.double())[targets]
+            report["coreml_covariates"][label] = {
+                "predict_ms": ms,
+                "battery_pct_max_abs": float(diff.abs().max()),
+                "median_battery_pct_max_abs": float(diff[..., 10].abs().max()),
+            }
         except Exception as e:  # noqa: BLE001
-            report["coreml_covariates"][label] = f"failed: {type(e).__name__}: {str(e).splitlines()[0][:300]}"
-            traceback.print_exc(limit=3)
-            continue
-        ml.save(str(OUT / f"{name}-core-cov-{CONTEXT}-{label}.mlpackage"))
-        feed = {k: v.numpy() for k, v in tensors_c.items()}
-        ms, out = timed(lambda: ml.predict(feed))
-        got = torch.from_numpy(out["quantiles"]).double()
-        denorm = denormalize_quantiles(got, loc_c, scale_c, model.config.use_asinh)
-        diff = (denorm - expected_c.double())[targets]
-        report["coreml_covariates"][label] = {
-            "predict_ms": ms,
-            "battery_pct_max_abs": float(diff.abs().max()),
-            "median_battery_pct_max_abs": float(diff[..., 10].abs().max()),
-        }
+            report["coreml_covariates"][label] = failure(stage, e)
     (OUT / f"{name}-parity-cov-{CONTEXT}.json").write_text(json.dumps({
         **{k: v.flatten().tolist() for k, v in tensors_c.items()},
         "shapes": {k: list(v.shape) for k, v in tensors_c.items()},

@@ -4,26 +4,125 @@
 #                  for it: build/release/Forewarn-<version>.dmg and build/release/forewarn.rb
 #   make publish   the same, then GitHub release v<version> with the DMG and its CHANGELOG section, and the cask
 #                  committed to Casks/ and pushed: this repository is its own tap.
+#                  The release stays a draft until the cask is on origin/main. Run again after a failure: an
+#                  existing release is resumed from its uploaded DMG, never rebuilt.
 # Without a Developer ID certificate it builds an ad-hoc DMG, to try the cask on this Mac only:
 # Gatekeeper blocks it on any other.
 set -eu
 
-VERSION=$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)
+MODE=${1:-}
 OUT=build/release
-DMG="$OUT/Forewarn-$VERSION.dmg"
+LOCK=build/.release.lock
 IDENTITY="Developer ID Application"
 PROFILE=${NOTARY_PROFILE:-forewarn} # xcrun notarytool store-credentials forewarn
 
-if [ "${1:-}" = publish ]; then
-    if grep -q "^## $VERSION (unreleased)" CHANGELOG.md; then
-        echo "error: CHANGELOG.md still calls $VERSION unreleased: give its section a date first" >&2
-        exit 1
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+# One run at a time: each one empties build/release, and a second could swap the DMG between its checksum and its
+# upload, publishing a cask that does not match.
+mkdir -p build
+mkdir "$LOCK" 2> /dev/null || die "another release is running (remove $LOCK if none is)"
+trap 'rmdir "$LOCK"' EXIT
+trap 'exit 130' INT TERM
+
+VERSION=$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"/\1/p' project.yml)
+[ "$(printf '%s\n' "$VERSION" | grep -c .)" -eq 1 ] && printf '%s\n' "$VERSION" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' ||
+    die "project.yml needs exactly one MARKETING_VERSION like \"1.2.3\", found: '$VERSION'"
+DMG="$OUT/Forewarn-$VERSION.dmg"
+
+# The section of exactly this version, dated: "## 1.2.3 (2026-10-28)". Compared as text, never as a regex.
+notes() {
+    awk -v version="$VERSION" '
+        BEGIN { heading = "## " version " (" }
+        /^## / {
+            inside = index($0, heading) == 1 && substr($0, length(heading) + 1) ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\)$/
+            found += inside
+            next
+        }
+        inside { print }
+        END { exit found == 1 ? 0 : 1 }
+    ' CHANGELOG.md
+}
+
+# The cask for a DMG with this SHA-256.
+cask() {
+    cat << EOF
+cask "forewarn" do
+  version "$VERSION"
+  sha256 "$1"
+
+  url "https://github.com/lrzdeveloper/forewarn/releases/download/v#{version}/Forewarn-#{version}.dmg"
+  name "Forewarn"
+  desc "Menu bar app that warns before the battery, disk or mobile data run out"
+  homepage "https://github.com/lrzdeveloper/forewarn"
+
+  depends_on macos: :tahoe
+
+  app "Forewarn.app"
+
+  uninstall quit: "io.github.lrzdeveloper.forewarn"
+
+  zap trash: [
+    "~/Library/Application Support/Forewarn",
+    "~/Library/Caches/io.github.lrzdeveloper.forewarn",
+    "~/Library/Preferences/io.github.lrzdeveloper.forewarn.plist",
+  ]
+end
+EOF
+}
+
+# Commits the cask for the DMG with this SHA (unless it is already there), pushes it to main, then makes the draft
+# release public: the release is never out without its cask.
+publish_cask() {
+    mkdir -p Casks
+    cask "$1" > Casks/forewarn.rb
+    if ! git diff --quiet -- Casks/forewarn.rb; then
+        git add Casks/forewarn.rb
+        git commit --quiet -m "Cask: forewarn $VERSION"
     fi
+    git push --quiet origin HEAD:refs/heads/main # the pre-push hook runs make check
+    gh release edit "v$VERSION" --draft=false > /dev/null
+    echo "brew tap lrzdeveloper/forewarn https://github.com/lrzdeveloper/forewarn"
+    echo "brew install --cask lrzdeveloper/forewarn/forewarn"
+}
+
+if [ "$MODE" = publish ]; then
+    NOTES=$(notes) && [ -n "$(printf '%s' "$NOTES" | tr -d '[:space:]')" ] ||
+        die "CHANGELOG.md needs exactly one dated, non-empty section \"## $VERSION (YYYY-MM-DD)\""
+    [ "$(git symbolic-ref --short -q HEAD || true)" = main ] || die "publish from the main branch"
+    [ -z "$(git status --porcelain)" ] || die "commit everything first"
     git fetch -q origin
-    if [ -n "$(git status --porcelain)" ] || [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-        echo "error: the release is tagged on origin/main: commit and push first" >&2
-        exit 1
+    SOURCE=$(git rev-parse HEAD)
+    ORIGIN=$(git rev-parse origin/main)
+    # A run whose push failed leaves its cask commit on top of origin/main: that one is resumed below.
+    LEFTOVER=no
+    if [ "$SOURCE" != "$ORIGIN" ]; then
+        [ "$(git rev-parse -q --verify HEAD^ || true)" = "$ORIGIN" ] &&
+            [ "$(git log -1 --format=%s)" = "Cask: forewarn $VERSION" ] ||
+            die "the release is tagged on origin/main: commit and push first"
+        LEFTOVER=yes
     fi
+
+    DRAFT=$(gh release view "v$VERSION" --json isDraft -q .isDraft 2> /dev/null || echo none)
+    if [ "$DRAFT" != none ]; then
+        if [ "$DRAFT" = false ] && git show origin/main:Casks/forewarn.rb | grep -qF "version \"$VERSION\""; then
+            echo "Forewarn $VERSION is already published, with its cask"
+            exit 0
+        fi
+        # Resume from what was uploaded: its checksum is the one the cask must carry.
+        echo "resuming v$VERSION from its uploaded DMG" >&2
+        rm -rf "$OUT"
+        mkdir -p "$OUT"
+        gh release download "v$VERSION" -p "Forewarn-$VERSION.dmg" -D "$OUT" ||
+            die "v$VERSION has no Forewarn-$VERSION.dmg: delete it (gh release delete v$VERSION) and run again"
+        spctl --assess --type open --context context:primary-signature "$DMG"
+        publish_cask "$(shasum -a 256 "$DMG" | cut -d " " -f 1)"
+        exit 0
+    fi
+    [ "$LEFTOVER" = no ] || die "HEAD is a cask commit for v$VERSION, which does not exist: drop it (git reset HEAD^)"
 fi
 
 if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
@@ -31,7 +130,7 @@ if security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
     TEAM=$(security find-identity -v -p codesigning | sed -n "s/.*\"$IDENTITY: .* (\(.*\))\"/\1/p" | head -n 1)
     SIGN_FLAGS=--timestamp
 else
-    [ "${1:-}" = publish ] && { echo "error: publishing needs a Developer ID Application certificate" >&2; exit 1; }
+    [ "$MODE" = publish ] && die "publishing needs a Developer ID Application certificate"
     echo "warning: no Developer ID Application certificate: ad-hoc DMG, for this Mac only" >&2
     IDENTITY=
     TEAM=
@@ -59,39 +158,13 @@ if [ -n "$IDENTITY" ]; then
 fi
 
 SHA=$(shasum -a 256 "$DMG" | cut -d " " -f 1)
-cat > "$OUT/forewarn.rb" << EOF
-cask "forewarn" do
-  version "$VERSION"
-  sha256 "$SHA"
-
-  url "https://github.com/lrzdeveloper/forewarn/releases/download/v#{version}/Forewarn-#{version}.dmg"
-  name "Forewarn"
-  desc "Menu bar app that warns before the battery, disk or mobile data run out"
-  homepage "https://github.com/lrzdeveloper/forewarn"
-
-  depends_on macos: :tahoe
-
-  app "Forewarn.app"
-
-  uninstall quit: "io.github.lrzdeveloper.forewarn"
-
-  zap trash: [
-    "~/Library/Application Support/Forewarn",
-    "~/Library/Caches/io.github.lrzdeveloper.forewarn",
-    "~/Library/Preferences/io.github.lrzdeveloper.forewarn.plist",
-  ]
-end
-EOF
+cask "$SHA" > "$OUT/forewarn.rb"
 echo "$DMG"
 echo "$OUT/forewarn.rb"
 
-[ "${1:-}" = publish ] || exit 0
-NOTES=$(awk -v heading="## $VERSION" 'index($0, heading) == 1 { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md)
-gh release create "v$VERSION" "$DMG" --target "$(git rev-parse HEAD)" --title "Forewarn $VERSION" --notes "$NOTES"
-mkdir -p Casks
-cp "$OUT/forewarn.rb" Casks/forewarn.rb
-git add Casks/forewarn.rb
-git commit --quiet -m "Cask: forewarn $VERSION"
-git push --quiet origin main # the pre-push hook runs make check
-echo "brew tap lrzdeveloper/forewarn https://github.com/lrzdeveloper/forewarn"
-echo "brew install --cask lrzdeveloper/forewarn/forewarn"
+[ "$MODE" = publish ] || exit 0
+# What was built is what gets tagged: nothing moved during the build and notarization.
+[ "$(git rev-parse HEAD)" = "$SOURCE" ] && [ -z "$(git status --porcelain)" ] ||
+    die "HEAD or the working tree changed during the build: run again"
+gh release create "v$VERSION" "$DMG" --draft --target "$SOURCE" --title "Forewarn $VERSION" --notes "$NOTES"
+publish_cask "$SHA"

@@ -29,7 +29,7 @@ struct HealthOutlookTests {
         // Apple's design wear on a new battery: 0.02 points a cycle, half a cycle a day, 0.01 points a day.
         let outlook = try estimate(store(), fullCharge: 100, cycles: 0)
         #expect(outlook.basis == .cycles)
-        #expect(abs(outlook.lossPerDay - 0.01) < 0.0001 && abs(outlook.cyclesPerYear - 182.5) < 0.5)
+        #expect(abs(outlook.lossPerDay - 0.01) < 0.0001 && abs((outlook.cyclesPerYear ?? 0) - 182.5) < 0.5)
         #expect(abs(outlook.inOneYear - 96.35) < 0.05 && abs(outlook.inThreeYears - 89.05) < 0.05)
         let end = now.addingTimeInterval(3 * 365 * 86400)
         let path = outlook.path(to: end)
@@ -128,5 +128,49 @@ struct DiskDetailTests {
         let daily = DiskTrend.daily(free: free, now: now)
         #expect(daily.count == 30 && daily.last?.value == Double(40 * 24 - 1))
         #expect(zip(daily, daily.dropFirst()).allSatisfy { $0.date < $1.date })
+    }
+}
+
+struct HealthEdgesTests {
+    let now = monday.addingTimeInterval(200 * 86400)
+
+    @Test func capacityNeverGoesBelowZero() {
+        let outlook = HealthOutlook(
+            basis: .cycles, start: now, maximumCapacity: 50, lossPerDay: 1, lossRange: 0.5 ... 2, cyclesPerDay: 1
+        )
+        let point = outlook.capacity(at: now + 365 * 86400)
+        #expect(point.low == 0 && point.median == 0 && point.high == 0)
+    }
+
+    @Test func aMeasuredDeclineNeedsNoRecentCycling() throws {
+        // Three months of Maximum Capacity falling a point a month, and no battery use at all: kept plugged in.
+        let store = try Store(path: nil)
+        try store.record((0 ... 90).map { Reading(
+            .maximumCapacity,
+            95 - Double($0) / 30,
+            at: now - Double(90 - $0) * 86400
+        ) })
+        let outlook = try #require(try HealthOutlook.estimate(
+            store: store, maximumCapacity: 92, fullChargePercent: 92, cycleCount: 100, designCycleCount: 1000, now: now
+        ))
+        #expect(outlook.basis == .measured(days: 90))
+        #expect(outlook.cyclesPerDay == nil)
+    }
+
+    @Test func theMeasurementsThemselvesMustSpanTwoMonths() throws {
+        let store = try Store(path: nil)
+        // Three readings 60, 59 and 58 days ago: two days of trend, two months old.
+        try store
+            .record([95, 94, 93].enumerated().map { Reading(.maximumCapacity, $1, at: now - Double(60 - $0) * 86400) })
+        #expect(try HealthTrend.fit(store: store, now: now) == nil)
+        // Two months of readings, but the last one 30 days ago: stale.
+        let stale = try Store(path: nil)
+        try stale.record((0 ... 60).map { Reading(
+            .maximumCapacity,
+            95 - Double($0) / 30,
+            at: now - Double(90 - $0) * 86400
+        ) })
+        #expect(try HealthTrend.fit(store: stale, now: now) == nil)
+        #expect(try HealthTrend.fit(store: stale, now: now - 20 * 86400)?.days == 60)
     }
 }

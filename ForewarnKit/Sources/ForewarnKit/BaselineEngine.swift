@@ -29,12 +29,10 @@ public struct BaselineEngine: ForecastEngine {
     }
 
     public func forecast(_ request: ForecastRequest) async throws -> QuantileForecast {
-        forecastNow(request)
-    }
-
-    func forecastNow(_ request: ForecastRequest) -> QuantileForecast {
-        let y = request.target
-        let changes = Self.changes(y, breaks: request.pastCovariates.first)
+        guard request.horizon >= 0 else { throw ForecastError.negativeHorizon }
+        guard request.horizon > 0 else { return .empty }
+        let y = request.target, breaks = request.pastCovariates.first
+        let changes = Self.changes(y, breaks: breaks)
         let profile = SeasonalProfile(
             changes: changes, firstDate: date(ofIndex: 0, count: y.count), step: step,
             utcOffset: Double(timeZone.secondsFromGMT(for: nextStepDate))
@@ -43,13 +41,16 @@ public struct BaselineEngine: ForecastEngine {
         guard let last = y.lastIndex(where: { !$0.isNaN }) else {
             return QuantileForecast(values: Array(repeating: Array(repeating: .nan, count: request.horizon), count: 21))
         }
-        let point = path(from: last, level: y[last], count: y.count, horizon: request.horizon, fit)
+        // A series that ends in missing steps (on power, not sampled yet): the path runs on through them from the last
+        // level seen, and only the steps after the series are returned, as far out from that level as they are.
+        let gap = y.count - 1 - last, steps = gap + request.horizon
+        let point = Array(path(from: last, level: y[last], count: y.count, horizon: steps, fit).suffix(request.horizon))
         let spread = Spread(
-            errors: pastErrors(y, fit, horizon: request.horizon),
+            errors: pastErrors(y, breaks: breaks, fit, horizon: steps),
             changeDeviation: Self.deviation(changes)
         )
         return QuantileForecast(values: QuantileForecast.levels.map { level in
-            point.indices.map { point[$0] + spread.offset(level: level, step: $0) }
+            point.indices.map { point[$0] + spread.offset(level: level, step: gap + $0) }
         })
     }
 
@@ -84,20 +85,33 @@ public struct BaselineEngine: ForecastEngine {
 
     // MARK: Spread
 
-    /// In-sample profile; a rolling profile if the bands prove too narrow in backtests.
     /// Errors of the point forecast at past origins, per step ahead: `errors[k]` for step k + 1.
-    /// The profile is learned from the whole series, so these errors are a little optimistic.
+    /// The profile is learned from the whole series, so these errors are a little optimistic; a rolling profile if
+    /// the bands prove too narrow in backtests.
+    /// An origin is scored only up to the next break: the level after a top-up on power says nothing about how
+    /// well the drain before it was forecast.
     private func pastErrors(
-        _ y: [Double], _ fit: Fit, horizon: Int
+        _ y: [Double], breaks: [Double]?, _ fit: Fit, horizon: Int
     ) -> [[Double]] {
+        func isBreak(_ i: Int) -> Bool {
+            breaks.map { i < $0.count && $0[i] > 0.5 } ?? false
+        }
         var errors = Array(repeating: [Double](), count: horizon)
         // Every half hour of history, at most 400 origins: enough for stable quantiles, cheap to compute.
         let stride = max(6, (y.count - horizon) / 400)
-        for origin in Swift.stride(from: recentSteps, to: y.count - 1, by: stride) where !y[origin].isNaN {
+        for origin in Swift.stride(from: recentSteps, to: y.count - 1, by: stride)
+            where !y[origin].isNaN && !isBreak(origin)
+        {
             let steps = min(horizon, y.count - 1 - origin)
             let forecast = path(from: origin, level: y[origin], count: y.count, horizon: steps, fit)
-            for k in 0 ..< steps where !y[origin + k + 1].isNaN {
-                errors[k].append(y[origin + k + 1] - forecast[k])
+            for k in 0 ..< steps {
+                let i = origin + k + 1
+                if isBreak(i) {
+                    break
+                }
+                if !y[i].isNaN {
+                    errors[k].append(y[i] - forecast[k])
+                }
             }
         }
         return errors
@@ -164,8 +178,8 @@ public struct BaselineEngine: ForecastEngine {
 private struct SeasonalProfile {
     let weekly: [Double?], daily: [Double?]
     let overall: Double
-    /// A daylight-saving change shifts older buckets by an hour; per-date offsets if that shows.
-    /// Seconds east of UTC, one value for the whole series: arithmetic instead of a calendar call per step.
+    /// Seconds east of UTC, one value for the whole series: arithmetic instead of a calendar call per step. A
+    /// daylight-saving change shifts older buckets by an hour; per-date offsets if that shows.
     let utcOffset: Double
     /// Fewer samples than this in a bucket and the coarser one answers: two hours of 5-minute steps, so one past
     /// occurrence of an hour is not enough to stand for it.

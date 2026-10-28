@@ -94,11 +94,15 @@ public extension Overview {
         public var chargeLimit: Int?
         /// On power, yet draining: the charger gives less than the Mac uses (F6).
         public var shortfall: ChargerShortfall?
+        /// When these readings were taken: times shown from them ("full at", "empty around") count from here, not from
+        /// whenever a view happens to draw them.
+        public var measuredAt: Date
 
         public init(
             percent: Double, isCharging: Bool, isOnAC: Bool,
             history: [Sample] = [], forecast: Forecast? = nil, usualPlugIn: Date? = nil,
-            systemEstimateMinutes: Int? = nil, chargeLimit: Int? = nil, shortfall: ChargerShortfall? = nil
+            systemEstimateMinutes: Int? = nil, chargeLimit: Int? = nil, shortfall: ChargerShortfall? = nil,
+            measuredAt: Date = .now
         ) {
             self.percent = percent
             self.isCharging = isCharging
@@ -109,6 +113,12 @@ public extension Overview {
             self.systemEstimateMinutes = systemEstimateMinutes
             self.chargeLimit = chargeLimit
             self.shortfall = shortfall
+            self.measuredAt = measuredAt
+        }
+
+        /// When macOS's estimate runs out: empty on battery, charged while charging.
+        public var systemEstimateEnds: Date? {
+            systemEstimateMinutes.map { measuredAt.addingTimeInterval(Double($0) * 60) }
         }
 
         /// On power, not charging, at the user's charge limit: macOS stopped on purpose.
@@ -143,10 +153,14 @@ public extension Overview {
 
         /// A discharge under this many mA is noise, not a charger falling short.
         public static let minimumDrain = 50.0
+        /// The 10-minute cadence on power, less the scheduler's tolerance either side.
+        public static let minimumGap = 8 * 60.0
 
         /// The last two battery readings, taken on power about 10 minutes apart, both discharging, the latest within
         /// 25 minutes of `now`. Not while the level sits above the charge limit: macOS may be bringing it
         /// down on purpose. Readings are the store's, oldest first; `status` gives the level, limit and full charge.
+        /// About 10 minutes is at least `minimumGap`: readings taken around a wake or a relaunch, seconds apart, are
+        /// not evidence of anything sustained.
         public static func detect(
             amperage: [Reading], onAC: [Reading], status: BatteryStatus, adapterWatts: Int?, now: Date
         ) -> ChargerShortfall? {
@@ -154,8 +168,8 @@ public extension Overview {
                   status.percent <= Double(status.chargeLimit ?? 100) + 1 else { return nil }
             let lastTwo = amperage.suffix(2)
             guard lastTwo.count == 2, let first = lastTwo.first, let last = lastTwo.last,
-                  now.timeIntervalSince(last.date) <= 25 * 60,
-                  last.date.timeIntervalSince(first.date) <= 25 * 60 else { return nil }
+                  (0 ... 25 * 60).contains(now.timeIntervalSince(last.date)),
+                  (minimumGap ... 25 * 60).contains(last.date.timeIntervalSince(first.date)) else { return nil }
             let plugged = Set(onAC.filter { $0.value == 1 }.map(\.date))
             guard lastTwo.allSatisfy({ $0.value <= -minimumDrain && plugged.contains($0.date) }) else { return nil }
             let drain = -lastTwo.map(\.value).reduce(0, +) / 2
@@ -283,8 +297,9 @@ public extension Overview {
             limitBytes > 0 ? min(Double(usedBytes) / Double(limitBytes), 1) : 0
         }
 
+        /// Also when the allowance is already used up, with or without a forecast.
         public var runsOutBeforeReset: Bool {
-            runsOutAt.map { $0 < resetDate } ?? false
+            (limitBytes > 0 && usedBytes >= limitBytes) || runsOutAt.map { $0 < resetDate } ?? false
         }
     }
 

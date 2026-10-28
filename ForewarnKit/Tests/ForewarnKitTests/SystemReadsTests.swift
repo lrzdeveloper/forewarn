@@ -93,3 +93,52 @@ struct NetworkCountersTests {
         #expect(!NetworkCounters.current().isEmpty) // at least lo0
     }
 }
+
+struct SleepBlockersTests {
+    @Test func namesComeFromThePidWhenAnAssertionHasNone() {
+        let byProcess: [NSNumber: [[String: Any]]] = [
+            42: [["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": 255]],
+            7: [["AssertType": "PreventSystemSleep", "AssertLevel": 255, "Process Name": "Docker"]],
+            9: [["AssertType": "PreventSystemSleep", "AssertLevel": 0, "Process Name": "Off"]], // held, but off
+            11: [["AssertType": "PreventUserIdleDisplaySleep", "AssertLevel": 255, "Process Name": "Display"]],
+        ]
+        #expect(SleepBlockers.names(byProcess) { $0 == 42 ? "caffeinate" : nil } == ["Docker", "caffeinate"])
+    }
+}
+
+struct FolderUsageTests {
+    @Test func addsUpAFolderAndCountsWhatItCannotRead() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "forewarn-\(UUID().uuidString)")
+        let locked = folder.appending(path: "locked")
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try Data(count: 10000).write(to: folder.appending(path: "file"))
+        try Data(count: 10).write(to: locked.appending(path: "hidden"))
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+            try? FileManager.default.removeItem(at: folder)
+        }
+        let usage = try #require(DiskSpace.usage(of: folder))
+        #expect(usage.bytes >= 10000)
+        #expect(usage.unreadable == 1)
+        #expect(DiskSpace.usage(of: folder.appending(path: "missing")) == nil)
+    }
+}
+
+struct ChargeTimeEdgesTests {
+    @Test func unusableReadingsGiveNoTime() {
+        func minutes(_ amperage: Double, _ capacity: Double, percent: Double = 70) -> Int? {
+            BatteryStatus(
+                percent: percent, isCharging: true, isOnAC: true, amperage: amperage, fullChargeCapacity: capacity,
+                chargeLimit: 80
+            ).minutesUntilCharged
+        }
+        #expect(minutes(4200, 8400) == 12)
+        #expect(minutes(4200, .infinity) == nil)
+        #expect(minutes(4200, .nan) == nil)
+        #expect(minutes(4200, -8400) == nil)
+        #expect(minutes(.infinity, 8400) == nil)
+        #expect(minutes(1e-300, 8400) == nil) // more minutes than an Int holds
+        #expect(minutes(4200, 8400, percent: .nan) == nil)
+    }
+}

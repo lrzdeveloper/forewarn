@@ -2,6 +2,9 @@
 
 check: lint test build l10n uitest ## Everything CI runs; the pre-push hook calls this
 
+# build, l10n and uitest share build/ and its Xcode build database: never run them side by side, even with make -j.
+.NOTPARALLEL:
+
 hooks: ## Install the pre-push hook (git hooks are not versioned)
 	printf '#!/bin/sh\nexec make check\n' > .git/hooks/pre-push
 	chmod +x .git/hooks/pre-push
@@ -57,7 +60,18 @@ model: ## Convert the production Timestral model; install it with a compiled cop
 	cd tools/convert && uv run production.py model
 	rm -rf tools/convert/out/$(MODEL).mlmodelc
 	xcrun coremlcompiler compile tools/convert/out/$(MODEL).mlpackage tools/convert/out
+	@# Staged beside the installed copy, checked, then swapped in item by item: a failed copy or download leaves the
+	@# installed model as it was, never a partial one where the app loads it. One install at a time.
 	mkdir -p "$(MODELS_DIR)"
-	rm -rf "$(MODELS_DIR)/$(MODEL).mlpackage" "$(MODELS_DIR)/$(MODEL).mlmodelc"
-	cp -R tools/convert/out/$(MODEL).mlpackage tools/convert/out/$(MODEL).mlmodelc "$(MODELS_DIR)/"
-	curl -fsSL https://huggingface.co/mistralai/Timestral-5M/resolve/main/LICENSE -o "$(MODELS_DIR)/Timestral-5M-LICENSE.txt"
+	set -e; dir="$(MODELS_DIR)"; stage="$$dir/.staging.$$$$"; \
+	mkdir "$$dir/.install.lock" || { echo "error: another make model is running (remove $$dir/.install.lock if none is)"; exit 1; }; \
+	trap 'rm -rf "$$stage"; rmdir "$$dir/.install.lock"' EXIT; \
+	mkdir "$$stage"; \
+	cp -R tools/convert/out/$(MODEL).mlpackage tools/convert/out/$(MODEL).mlmodelc "$$stage/"; \
+	curl -fsSL https://huggingface.co/mistralai/Timestral-5M/resolve/main/LICENSE -o "$$stage/Timestral-5M-LICENSE.txt"; \
+	test -f "$$stage/$(MODEL).mlmodelc/coremldata.bin" && test -s "$$stage/Timestral-5M-LICENSE.txt"; \
+	for item in $(MODEL).mlpackage $(MODEL).mlmodelc Timestral-5M-LICENSE.txt; do \
+		rm -rf "$$stage/previous"; \
+		if [ -e "$$dir/$$item" ]; then mv "$$dir/$$item" "$$stage/previous"; fi; \
+		mv "$$stage/$$item" "$$dir/$$item" || { [ ! -e "$$stage/previous" ] || mv "$$stage/previous" "$$dir/$$item"; exit 1; }; \
+	done

@@ -24,6 +24,8 @@ final class OverviewStore {
     private let scheduler = NSBackgroundActivityScheduler(identifier: "io.github.lrzdeveloper.forewarn.refresh")
     private let pathMonitor = NWPathMonitor()
     private var observers: [NSObjectProtocol] = []
+    /// The latest insight check: each one waits for the one before (see `notifyIfDue`).
+    private var insightCheck: Task<Void, Never>?
     private let log = Logger(subsystem: "io.github.lrzdeveloper.forewarn", category: "collection")
 
     init() {
@@ -71,7 +73,8 @@ final class OverviewStore {
                     systemEstimateMinutes: status.isCharging ? status.minutesUntilCharged : status
                         .systemEstimateMinutes,
                     chargeLimit: status.chargeLimit,
-                    shortfall: Self.shortfall(status, store: store)
+                    shortfall: Self.shortfall(status, store: store),
+                    measuredAt: .now
                 )
             },
             disk: DiskSpace.current().map {
@@ -177,25 +180,52 @@ final class OverviewStore {
 
     // MARK: Collection
 
-    /// Runs recorder work off the main actor, then redraws. Failures are logged: a missed sample is not worth
-    /// interrupting anyone for.
-    private func record(_ work: @escaping @Sendable (Recorder) async throws -> Void) {
-        guard let recorder else { return }
-        Task {
+    /// Runs recorder work off the main actor, then the forecast and the warnings, then redraws. Failures are
+    /// logged: a missed sample is not worth interrupting anyone for. The task ends when all of it has.
+    @discardableResult
+    private func record(_ work: @escaping @Sendable (Recorder) async throws -> Void) -> Task<Void, Never>? {
+        guard let recorder else { return nil }
+        return Task {
             do {
                 try await work(recorder)
                 if let forecaster {
                     let battery = BatteryStatus.current()
                     batteryForecast = try await forecaster.update(battery: battery)
                     try await forecaster.evaluateIfDue(onAC: battery?.isOnAC ?? false)
-                    let due = try Insights.due(insightContext(battery: battery), store: recorder.store)
-                    await notifier?.send(due)
+                    await notifyIfDue(battery: battery, store: recorder.store)
                 }
             } catch {
                 log.error("recording failed: \(error.localizedDescription, privacy: .public)")
             }
             refresh()
         }
+    }
+
+    /// One check at a time. `Insights.due` decides from what was already sent, and sending waits on Notification
+    /// Center: a power, network or scheduler event meanwhile would decide the same warning again and send it twice.
+    private func notifyIfDue(battery: BatteryStatus?, store: Store) async {
+        let previous = insightCheck
+        let check = Task {
+            await previous?.value
+            do {
+                try await notifier?.send(Insights.due(insightContext(battery: battery), store: store))
+            } catch {
+                log.error("insight check failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        insightCheck = check
+        await check.value
+    }
+
+    /// Settings › Privacy › Delete: the data and everything learned from it start over. The forecast on screen and
+    /// the recorder's counters go with it, so nothing from before shows or gets counted again.
+    func deleteAllData() async throws {
+        guard let recorder else { return }
+        try recorder.store.deleteAll()
+        batteryForecast = nil
+        await forecaster?.reset()
+        await recorder.reset()
+        refresh()
     }
 
     private func startScheduler() {
@@ -205,7 +235,9 @@ final class OverviewStore {
         scheduler.repeats = true
         scheduler.schedule { [weak self] completion in
             Task { @MainActor in
-                self?.record { try await $0.tick() }
+                // Finished once the tick, the forecast and any backtest are: the scheduler holds the background
+                // activity open for exactly that long.
+                await self?.record { try await $0.tick() }?.value
                 completion(.finished)
             }
         }
@@ -222,10 +254,14 @@ final class OverviewStore {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
         }
 
-        // Network: count bytes only while macOS marks the path expensive (hotspot, some cellular).
+        // Network: count bytes only while macOS marks the path expensive (hotspot, some cellular), and only on the
+        // interfaces of the types the path sends over: `availableInterfaces` lists every interface, in preference
+        // order, not the one in use.
+        // Two interfaces of the path's type are both counted; one monitor per interface if that shows.
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            let interface = path.isExpensive ? path.availableInterfaces.first?.name : nil
-            Task { @MainActor in self?.record { try await $0.meteredPathChanged(to: interface) } }
+            let interfaces = path.isExpensive
+                ? Set(path.availableInterfaces.filter { path.usesInterfaceType($0.type) }.map(\.name)) : []
+            Task { @MainActor in self?.record { try await $0.meteredPathChanged(to: interfaces) } }
         }
         pathMonitor.start(queue: .global(qos: .utility))
 

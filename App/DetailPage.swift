@@ -13,8 +13,12 @@ struct DetailPage<Content: View>: View {
     let onBack: () -> Void
     @ViewBuilder let content: Content
     @State private var contentHeight: CGFloat = 400
-    /// The main screen's height; the panel's own screen if Forewarn ever opens on a second display.
-    private let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 120
+    /// The panel's own screen, read again when the panel moves to another screen or the screen changes (a display
+    /// arranged, the Dock shown): the main screen can be another display entirely.
+    @State private var window: NSWindow?
+    @State private var screenHeight = NSScreen.main?.visibleFrame.height ?? 800
+    /// Room for the menu bar, the header above the scroll view and the panel's padding.
+    private var maxHeight: CGFloat { screenHeight - 120 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -46,6 +50,24 @@ struct DetailPage<Content: View>: View {
             .scrollBounceBehavior(.basedOnSize)
             // No bars float over this content: the edge fade only dimmed the last lines (Xcode's contrast audit).
             .scrollEdgeEffectHidden()
+        }
+        .background(HostingWindowReader(window: $window).accessibilityHidden(true))
+        .onChange(of: window) { readScreen() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeScreenNotification)) { note in
+            if note.object as? NSWindow == window {
+                readScreen()
+            }
+        }
+        .onReceive(NotificationCenter.default
+            .publisher(for: NSApplication.didChangeScreenParametersNotification))
+        { _ in
+            readScreen()
+        }
+    }
+
+    private func readScreen() {
+        if let height = (window?.screen ?? NSScreen.main)?.visibleFrame.height {
+            screenHeight = height
         }
     }
 }

@@ -1,5 +1,4 @@
 import ForewarnKit
-import ServiceManagement
 import SwiftUI
 
 /// UserDefaults keys shared by Settings and the features that read them.
@@ -80,6 +79,7 @@ private struct GeneralPane: View {
 /// The app's language. Same storage as System Settings' per-app language; applies on restart.
 private struct LanguageSection: View {
     @State private var language = LanguageChoice.current
+    @State private var restartFailed = false
 
     var body: some View {
         Section {
@@ -88,47 +88,19 @@ private struct LanguageSection: View {
             }
             .onChange(of: language) { LanguageChoice.set(language) }
             if language != LanguageChoice.atLaunch {
-                Button("Restart Forewarn") { LanguageChoice.relaunch() }
-                    .accessibilityIdentifier("restartForLanguage")
+                Button("Restart Forewarn") {
+                    restartFailed = false
+                    LanguageChoice.relaunch { restartFailed = true }
+                }
+                .accessibilityIdentifier("restartForLanguage")
             }
         } footer: {
-            Text("Forewarn switches language when it restarts.")
-        }
-    }
-}
-
-/// Shared by Settings › General and the welcome window.
-struct LaunchAtLoginSection: View {
-    // SMAppService is the source of truth; no mirrored UserDefaults key.
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var errorMessage: String?
-
-    var body: some View {
-        Section {
-            // Closure, not a method reference: Swift 6.3 crashes in IRGen on the method-reference thunk.
-            Toggle("Open at login", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
-                .accessibilityIdentifier("launchAtLogin")
-        } footer: {
-            if let errorMessage {
-                Text(errorMessage).foregroundStyle(.red)
+            if restartFailed {
+                Text(LanguageChoice.restartFailedMessage).foregroundStyle(.red)
             } else {
-                Text("Forewarn starts quietly in the menu bar and checks in only when something changes.")
+                Text("Forewarn switches language when it restarts.")
             }
         }
-    }
-
-    private func setLaunchAtLogin(_ enabled: Bool) {
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 }
 
@@ -303,6 +275,7 @@ struct Explainer: View {
 private struct PrivacyPane: View {
     @Environment(OverviewStore.self) private var overviewStore
     @State private var confirmingDelete = false
+    @State private var exporting = false
     @State private var errorMessage: String?
 
     private var store: Store? { overviewStore.recorder?.store }
@@ -326,7 +299,12 @@ private struct PrivacyPane: View {
             Section {
                 LabeledContent("Your data") {
                     HStack {
+                        // HIG, Progress indicators: a spinner beside the control that started it, without a label.
+                        if exporting {
+                            ProgressView().controlSize(.small)
+                        }
                         Button("Export…", systemImage: "square.and.arrow.up", action: export)
+                            .disabled(exporting)
                         Button("Delete…", systemImage: "trash") { confirmingDelete = true }
                             .accessibilityIdentifier("deleteData")
                     }
@@ -358,22 +336,31 @@ private struct PrivacyPane: View {
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.nameFieldStringValue = String(localized: "Forewarn data.csv")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try store.exportCSV().write(to: url, atomically: true, encoding: .utf8)
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+        exporting = true
+        // Every sample and event: tens of thousands of rows. Read and written off the main actor, so Settings and
+        // the menu bar stay responsive.
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try store.exportCSV().write(to: url, atomically: true, encoding: .utf8) }
+            }.value
+            exporting = false
+            if case let .failure(error) = result {
+                errorMessage = error.localizedDescription
+            } else {
+                errorMessage = nil
+            }
         }
     }
 
     private func delete() {
-        do {
-            try store?.deleteAll()
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
+        Task {
+            do {
+                try await overviewStore.deleteAllData()
+                errorMessage = nil
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
-        overviewStore.refresh()
     }
 }
 

@@ -12,6 +12,8 @@ public struct PlugInHabit: Sendable {
 
     private let plugIns: [Date], unplugs: [Date]
     private let historyStart: Date, now: Date
+    /// Earlier days are found on the calendar, so a plug-in at 18:00 stays at 18:00 across a daylight-saving change.
+    private let calendar: Calendar
     /// How much other weekdays count, from 1 (short history) down to 0 (four weeks or more).
     private let otherWeekdayWeight: Double
 
@@ -19,11 +21,14 @@ public struct PlugInHabit: Sendable {
     ///   - plugIns: plug-in times, any order. `unplugs` tell when the Mac was already on power (those days are
     ///     skipped: they say nothing about when someone on battery plugs in).
     ///   - historyStart: when recording began; days before it are not read as "never plugged in".
-    public init(plugIns: [Date], unplugs: [Date] = [], historyStart: Date, now: Date) {
+    ///   - calendar: whose days and clock times are read. A time a change skips takes the next valid one, a time it
+    ///     repeats the first (Foundation's `date(byAdding:)`).
+    public init(plugIns: [Date], unplugs: [Date] = [], historyStart: Date, now: Date, calendar: Calendar = .current) {
         self.plugIns = plugIns.sorted()
         self.unplugs = unplugs.sorted()
         self.historyStart = historyStart
         self.now = now
+        self.calendar = calendar
         otherWeekdayWeight = max(0, 1 - now.timeIntervalSince(historyStart) / (28 * 86400))
     }
 
@@ -33,8 +38,9 @@ public struct PlugInHabit: Sendable {
         var unplugged = [Double](repeating: 0, count: count), observed = [Double](repeating: 0, count: count)
         let decay = log(2) / Self.halfLife
         for day in 1 ... Self.lookBackDays {
-            let origin = start.addingTimeInterval(-Double(day) * 86400)
-            guard origin >= historyStart else { break }
+            // Same clock time `day` calendar days back: same weekday every seventh.
+            guard let origin = calendar.date(byAdding: .day, value: -day, to: start),
+                  origin >= historyStart else { break }
             let weight = exp(-decay * Double(day) * 86400) * (day % 7 == 0 ? 1 : otherWeekdayWeight)
             guard weight > 0, !onPower(at: origin) else { continue }
             let next = plugIns.first { $0 > origin }

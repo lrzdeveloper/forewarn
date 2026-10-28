@@ -14,8 +14,9 @@ public enum Metric: String, Sendable, CaseIterable, Identifiable {
 
     public var id: Self { self }
 
-    /// Kept at full resolution for 114 days, the forecast model's whole context.
-    var keepsFullResolutionLonger: Bool { self == .batteryPercent || self == .onAC }
+    /// Kept at full resolution for 114 days: battery and power source are the forecast model's whole context;
+    /// mobile data, so a billing period (up to 31 days) always adds up exactly.
+    var keepsFullResolutionLonger: Bool { self == .batteryPercent || self == .onAC || self == .meteredBytes }
 
     /// Amounts per interval add up when aggregated; levels average.
     var isAmount: Bool { self == .meteredBytes || self == .selfEnergy }
@@ -41,10 +42,13 @@ public struct Event: Sendable, Equatable, Identifiable {
     public var kind: Kind
     public var date: Date
     public var details: [String: String]
-    /// Events of one kind can share a moment (one folder-size event per folder), so details are part of it.
+    /// Events of one kind can share a moment (one folder-size event per folder), so details are part of it: as
+    /// JSON with sorted keys, which escapes them, so two different events never share an id.
     public var id: String {
-        "\(kind.rawValue)@\(date.timeIntervalSince1970)" + details.sorted { $0.key < $1.key }.map { "|\($0)=\($1)" }
-            .joined()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let json = (try? encoder.encode(details)).flatMap { String(bytes: $0, encoding: .utf8) } ?? ""
+        return "\(kind.rawValue)@\(date.timeIntervalSince1970)\(json)"
     }
 
     public init(_ kind: Kind, at date: Date, _ details: [String: String] = [:]) {
@@ -56,6 +60,9 @@ public struct Event: Sendable, Equatable, Identifiable {
 
 /// SQLite through GRDB: `samples` at full resolution, then hourly averages for a year, then daily ones
 /// forever; `events` for things that happen at a moment (plug-in, sleep, …).
+///
+/// An hourly or daily value carries `n`, the readings behind it, and there is one per metric, time and resolution:
+/// levels roll up weighted by `n`, and a reading that arrives after its hour was compacted merges into it.
 public final class Store: Sendable {
     private let db: DatabaseQueue
 
@@ -94,6 +101,27 @@ public final class Store: Sendable {
                 t.column("details", .text).notNull()
             }
         }
+        migrator.registerMigration("v3 aggregates") { db in
+            try db.alter(table: "samples") { t in
+                t.add(column: "n", .integer).notNull().defaults(to: 1)
+            }
+            // Before 1.1 a late reading could make a second bucket for the same hour: merge those first. Their
+            // counts are unknown, so they weigh the same.
+            let amounts = Metric.allCases.filter(\.isAmount).map { "'\($0.rawValue)'" }.joined(separator: ", ")
+            try db.execute(sql: """
+            CREATE TEMP TABLE merged AS
+            SELECT metric, ts, resolution,
+                   CASE WHEN metric IN (\(amounts)) THEN SUM(value) ELSE AVG(value) END AS value, COUNT(*) AS n
+            FROM samples WHERE resolution > 0 GROUP BY metric, ts, resolution HAVING COUNT(*) > 1;
+            DELETE FROM samples WHERE resolution > 0 AND EXISTS (
+                SELECT 1 FROM merged m WHERE m.metric = samples.metric AND m.ts = samples.ts
+                AND m.resolution = samples.resolution
+            );
+            INSERT INTO samples (metric, ts, value, resolution, n) SELECT metric, ts, value, resolution, n FROM merged;
+            DROP TABLE merged;
+            CREATE UNIQUE INDEX samples_bucket ON samples (metric, ts, resolution) WHERE resolution > 0;
+            """)
+        }
         try migrator.migrate(db)
     }
 
@@ -106,8 +134,11 @@ public final class Store: Sendable {
 
     // MARK: Writing
 
-    public func record(_ readings: [Reading]) throws {
-        guard !readings.isEmpty else { return }
+    /// Readings and events in one transaction: all of them are stored, or none.
+    public func record(_ readings: [Reading], events: [Event] = []) throws {
+        guard !readings.isEmpty || !events.isEmpty else { return }
+        let encoded = try events
+            .map { try ($0, String(bytes: JSONEncoder().encode($0.details), encoding: .utf8) ?? "{}") }
         try db.write { db in
             for r in readings {
                 try db.execute(
@@ -115,28 +146,33 @@ public final class Store: Sendable {
                     arguments: [r.metric.rawValue, r.date.timeIntervalSince1970, r.value]
                 )
             }
+            for (event, details) in encoded {
+                try db.execute(
+                    sql: "INSERT INTO events (kind, ts, details) VALUES (?, ?, ?)",
+                    arguments: [event.kind.rawValue, event.date.timeIntervalSince1970, details]
+                )
+            }
         }
     }
 
     public func record(_ event: Event) throws {
-        let details = try String(bytes: JSONEncoder().encode(event.details), encoding: .utf8) ?? "{}"
-        try db.write { db in
-            try db.execute(
-                sql: "INSERT INTO events (kind, ts, details) VALUES (?, ?, ?)",
-                arguments: [event.kind.rawValue, event.date.timeIntervalSince1970, details]
-            )
-        }
+        try record([], events: [event])
     }
 
     // MARK: Reading
+
+    /// Readings and buckets from `start` on. An hourly or daily bucket dated at its start that runs past `start`
+    /// counts whole: it holds readings from after `start` too, and compacting must not make them disappear
+    /// Only the bucket that straddles `start` reaches back before it.
+    private static let since = "metric = ? AND (ts >= ? OR ts + resolution > ?)"
 
     /// Every stored value of `metric` from `start` on, oldest first, whatever its resolution.
     public func series(_ metric: Metric, since start: Date = .distantPast) throws -> [Reading] {
         try db.read { db in
             try Row.fetchAll(
                 db,
-                sql: "SELECT ts, value FROM samples WHERE metric = ? AND ts >= ? ORDER BY ts",
-                arguments: [metric.rawValue, start.timeIntervalSince1970]
+                sql: "SELECT ts, value FROM samples WHERE \(Self.since) ORDER BY ts",
+                arguments: [metric.rawValue, start.timeIntervalSince1970, start.timeIntervalSince1970]
             ).map { Reading(metric, $0["value"], at: Date(timeIntervalSince1970: $0["ts"])) }
         }
     }
@@ -155,8 +191,8 @@ public final class Store: Sendable {
         try db.read { db in
             try Double.fetchOne(
                 db,
-                sql: "SELECT COALESCE(SUM(value), 0) FROM samples WHERE metric = ? AND ts >= ?",
-                arguments: [metric.rawValue, start.timeIntervalSince1970]
+                sql: "SELECT COALESCE(SUM(value), 0) FROM samples WHERE \(Self.since)",
+                arguments: [metric.rawValue, start.timeIntervalSince1970, start.timeIntervalSince1970]
             ) ?? 0
         }
     }
@@ -212,15 +248,20 @@ public final class Store: Sendable {
         }
     }
 
+    /// Amounts add up; levels average, weighted by the readings behind each value. A bucket that already exists
+    /// (a reading arrived after its hour was compacted) takes the new values in the same way.
     private static func rollUp(_ db: Database, _ metric: Metric, from: Int, to: Int, before cutoff: Double) throws {
         let edge = (cutoff / Double(to)).rounded(.down) * Double(to)
-        let combine = metric.isAmount ? "SUM" : "AVG"
+        let (combine, merge) = metric.isAmount
+            ? ("SUM(value)", "value + excluded.value")
+            : ("SUM(value * n) / SUM(n)", "(value * n + excluded.value * excluded.n) / (n + excluded.n)")
         try db.execute(
             sql: """
-            INSERT INTO samples (metric, ts, value, resolution)
-            SELECT metric, CAST(ts / ? AS INTEGER) * ?, \(combine)(value), ?
+            INSERT INTO samples (metric, ts, value, resolution, n)
+            SELECT metric, CAST(ts / ? AS INTEGER) * ?, \(combine), ?, SUM(n)
             FROM samples WHERE metric = ? AND resolution = ? AND ts < ?
             GROUP BY CAST(ts / ? AS INTEGER)
+            ON CONFLICT (metric, ts, resolution) WHERE resolution > 0 DO UPDATE SET value = \(merge), n = n + excluded.n
             """,
             arguments: [to, to, to, metric.rawValue, from, edge, to]
         )

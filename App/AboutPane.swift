@@ -122,16 +122,19 @@ enum AboutDocument: String, Identifiable {
         }
     }
 
-    var text: String {
+    /// The text, or nil when it can't be read. Only the model's license has somewhere else to point: the others
+    /// ship inside the app.
+    var text: String? {
         let url: URL? = switch self {
         case .changelog: Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
         case .forewarn: Bundle.main.url(forResource: "LICENSE", withExtension: nil)
         case .grdb: Bundle.main.url(forResource: "GRDB.swift", withExtension: "txt")
         case .timestral: URL.applicationSupportDirectory.appending(path: "Forewarn/Models/Timestral-5M-LICENSE.txt")
         }
-        return url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-            // A model installed before `make model` fetched its license; reinstalling adds it.
-            ?? "https://huggingface.co/mistralai/Timestral-5M/blob/main/LICENSE"
+        let text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        guard text == nil, self == .timestral else { return text }
+        // A model installed before `make model` fetched its license; reinstalling adds it.
+        return "https://huggingface.co/mistralai/Timestral-5M/blob/main/LICENSE"
     }
 }
 
@@ -143,15 +146,26 @@ private struct DocumentSheet: View {
     var body: some View {
         // Title and Done as bars: no fixed rules, the system's scroll edge shows only while text runs under one.
         ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                if document == .changelog {
-                    Markdown(text: document.text)
+            // Lazy: the release notes grow with every version, and only the lines on screen need to exist (and be
+            // walked by VoiceOver's audit).
+            LazyVStack(alignment: .leading, spacing: 8) {
+                if let text = document.text {
+                    if document == .changelog {
+                        Markdown(text: text)
+                    } else {
+                        Text(verbatim: text)
+                    }
                 } else {
-                    Text(verbatim: document.text)
+                    Text("This document is missing from Forewarn. Reinstalling Forewarn restores it.")
+                        .foregroundStyle(.subdued)
+                        .padding(.top, 8)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
+            // A lazy stack is a container of its own: named after the document.
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text(document.title))
         }
         .accessibilityIdentifier("documentText")
         .safeAreaBar(edge: .top) {

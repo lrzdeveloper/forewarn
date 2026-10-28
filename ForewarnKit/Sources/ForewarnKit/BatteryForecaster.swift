@@ -19,9 +19,14 @@ public actor BatteryForecaster {
     private let loadTimestral: @Sendable () -> (any ForecastEngine)?
     private var timestral: (any ForecastEngine)?
     private var current: Overview.Forecast?
-    private var lastRun = Date.distantPast
+    /// When the last run started, whatever came of it: no forecast, a failure or a forecast all wait out
+    /// `minimumInterval` before the next one.
+    private var lastAttempt = Date.distantPast
     /// The actor takes other calls while one awaits an engine: these keep a second run from starting meanwhile.
     private var forecasting = false, evaluating = false
+    /// Changes when a discharge session ends (on power, no battery, data deleted): a run that started before then
+    /// must not bring its forecast back.
+    private var session = 0
 
     /// `loadTimestral` returns the engine when the model is installed, `nil` otherwise: the baseline then answers.
     public init(
@@ -36,22 +41,34 @@ public actor BatteryForecaster {
     /// Called after each battery reading; returns the forecast to show, if any.
     public func update(battery: BatteryStatus?, now: Date = .now) async throws -> Overview.Forecast? {
         guard let battery, !battery.isOnAC else {
-            current = nil
-            timestral = nil
+            endSession()
             return nil
         }
-        if forecasting || current.map({ !needsRerun($0, level: battery.percent, now: now) }) ?? false {
-            return current
-        }
+        guard !forecasting, now.timeIntervalSince(lastAttempt) >= Self.minimumInterval,
+              current.map({ needsRerun($0, level: battery.percent, now: now) }) ?? true else { return current }
         forecasting = true
         defer { forecasting = false }
-        current = try await run(level: battery.percent, now: now)
-        lastRun = now
+        lastAttempt = now
+        let started = session
+        let forecast = try await run(level: battery.percent, now: now)
+        guard session == started else { return nil } // plugged in (or reset) while it ran
+        current = forecast
         return current
     }
 
+    /// Everything was deleted (Settings › Privacy): no forecast from the old history, and the next one runs at once.
+    public func reset() {
+        endSession()
+        lastAttempt = .distantPast
+    }
+
+    private func endSession() {
+        current = nil
+        timestral = nil
+        session += 1
+    }
+
     private func needsRerun(_ forecast: Overview.Forecast, level: Double, now: Date) -> Bool {
-        guard now.timeIntervalSince(lastRun) >= Self.minimumInterval else { return false }
         let elapsed = now.timeIntervalSince(forecast.start)
         let index = Int((elapsed / forecast.step).rounded())
         guard index < forecast.quantiles.horizon / 2,

@@ -165,9 +165,20 @@ private struct BatterySection: View {
         (battery.percent / 100).formatted(.percent.precision(.fractionLength(0)))
     }
 
-    /// When charging stops: at the charge limit when one is set, else at 100%.
+    /// When charging stops: at the charge limit when one is set, else at 100%. From when it was measured, so the
+    /// time stays put however often the popover redraws.
     private var fullAt: Date? {
-        battery.systemEstimateMinutes.map { .now.addingTimeInterval(Double($0) * 60) }
+        battery.systemEstimateEnds
+    }
+
+    /// The last step the forecast reaches.
+    private var forecastEnd: Date? {
+        battery.forecast.map { $0.start.addingTimeInterval(Double(max($0.quantiles.horizon - 1, 0)) * $0.step) }
+    }
+
+    /// Whole hours the forecast covers.
+    private var forecastHours: Int {
+        battery.forecast.map { Int(Double($0.quantiles.horizon) * $0.step / 3600) } ?? 0
     }
 
     /// Short answer to "do I need to do anything, and by when?"
@@ -188,9 +199,9 @@ private struct BatterySection: View {
         if battery.isOnAC {
             return String(localized: "Plugged in")
         }
-        guard let forecast = battery.forecast else {
-            let left = battery.systemEstimateMinutes.map {
-                Duration.seconds($0 * 60).formatted(.units(
+        guard battery.forecast != nil else {
+            let left = battery.systemEstimateEnds.map(\.timeIntervalSinceNow).flatMap { $0 > 0 ? $0 : nil }.map {
+                Duration.seconds($0).formatted(.units(
                     allowed: [.hours, .minutes],
                     width: .narrow,
                     maximumUnitCount: 2
@@ -202,8 +213,7 @@ private struct BatterySection: View {
             return risky ? String(localized: "Plug in before \(clockTime(low))")
                 : String(localized: "Lasts until \(clockTime(low))")
         }
-        let hours = Int(Double(forecast.quantiles.horizon) * forecast.step / 3600)
-        return String(localized: "Lasts more than \(hours) hours")
+        return String(localized: "Lasts more than \(forecastHours) hours")
     }
 
     /// One plain sentence that says why, with the numbers it is based on.
@@ -242,12 +252,24 @@ private struct BatterySection: View {
         guard battery.forecast != nil else {
             return String(localized: "macOS's estimate, based on how you are using the Mac right now.")
         }
+        // No 10% within the forecast: all it says is that the battery lasts at least that long.
+        guard let low = battery.runsLowAt else {
+            if let plugIn = battery.usualPlugIn, let end = forecastEnd, plugIn <= end {
+                return String(
+                    // swiftlint:disable:next line_length
+                    localized: "You usually plug in at \(clockTime(plugIn)), and at this pace the battery stays above 10% until then."
+                )
+            }
+            return String(
+                localized: "At this pace the battery stays above 10% for at least the next \(forecastHours) hours."
+            )
+        }
         guard let plugIn = battery.usualPlugIn else {
             return String(
                 localized: "At this pace, the battery gets to 10%, the level where Forewarn warns you, at that time."
             )
         }
-        if risky, let low = battery.runsLowAt {
+        if risky || plugIn > low {
             let gap = Duration.seconds(plugIn.timeIntervalSince(low))
                 .formatted(.units(allowed: [.hours, .minutes], width: .wide, maximumUnitCount: 2))
             return String(
@@ -279,7 +301,8 @@ private struct BatterySection: View {
         }
         if let shortfall = battery.shortfall {
             // How strong the charger is, and how long the battery lasts at this pace.
-            let empty = clockTime(.now.addingTimeInterval(battery.percent / shortfall.percentPerHour * 3600))
+            let empty = clockTime(battery.measuredAt
+                .addingTimeInterval(battery.percent / shortfall.percentPerHour * 3600))
             return [
                 level,
                 .init(caption: String(localized: "Charger"), value: watts(shortfall) ?? "–"),
@@ -291,7 +314,7 @@ private struct BatterySection: View {
         }
         guard battery.forecast != nil else {
             // The headline already says how long; this says until when.
-            let empty = battery.systemEstimateMinutes.map { clockTime(.now.addingTimeInterval(Double($0) * 60)) }
+            let empty = battery.systemEstimateEnds.map(clockTime)
             return [level, .init(caption: String(localized: "Empty around"), value: empty ?? "–")]
         }
         return [
@@ -320,17 +343,6 @@ private func clockTime(_ date: Date) -> String {
         return String(localized: "\(time) tomorrow")
     }
     return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
-}
-
-/// Where the chart will be. Not the hourglass: that is Forewarn's mark, and means nothing else.
-private struct LearningCard: View {
-    var body: some View {
-        Module(title: "Still learning your habits", symbol: "chart.line.downtrend.xyaxis") {
-            Text("The chart appears after about 3 days on battery.")
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }
 
 private func energyText(_ percent: Double) -> String {

@@ -13,6 +13,8 @@ struct DebugView: View {
     @State private var summary: [Store.MetricSummary] = []
     @State private var series: [Reading] = []
     @State private var events: [Event] = []
+    /// The last read that failed: an unreadable database must not look like a recorder that stored nothing.
+    @State private var loadError: String?
 
     var body: some View {
         if let store = overviewStore.recorder?.store {
@@ -46,6 +48,11 @@ struct DebugView: View {
                         .fixedSize()
                         .accessibilityIdentifier("testNotification")
                     }
+                    if let loadError {
+                        Text(verbatim: "Read failed, showing the last data read: \(loadError)")
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
+                    }
                     Chart(series, id: \.date) {
                         LineMark(x: .value("Time", $0.date), y: .value("Value", $0.value))
                     }
@@ -75,10 +82,18 @@ struct DebugView: View {
         }
     }
 
+    /// All three or none: a failed read keeps what was shown and says why.
     private func load(_ store: Store) {
         let start = Date.now.addingTimeInterval(-Double(days) * 86400)
-        summary = (try? store.summary()) ?? []
-        series = (try? store.series(metric, since: start)) ?? []
-        events = (try? store.events(since: start)) ?? []
+        do {
+            (summary, series, events) = try (
+                store.summary(),
+                store.series(metric, since: start),
+                store.events(since: start)
+            )
+            loadError = nil
+        } catch {
+            loadError = String(describing: error)
+        }
     }
 }

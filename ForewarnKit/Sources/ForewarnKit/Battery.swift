@@ -46,12 +46,14 @@ public struct BatteryStatus: Sendable, Equatable {
 
     /// Minutes until charging stops: at the charge limit when one is set, computed from the charging current
     /// (macOS's own estimate counts to 100%); otherwise macOS's time to full.
+    /// Nil when the readings can't give a time: not finite, a negative capacity, or a result no `Int` holds.
     public var minutesUntilCharged: Int? {
         guard isCharging else { return nil }
         guard let limit = chargeLimit else { return systemEstimateMinutes }
-        guard let amperage, amperage > 0, let fullChargeCapacity else { return nil }
-        let missing = max(Double(limit) - percent, 0) / 100 * fullChargeCapacity
-        return Int((missing / amperage * 60).rounded(.up))
+        guard let amperage, amperage > 0, amperage.isFinite, let fullChargeCapacity, fullChargeCapacity >= 0,
+              fullChargeCapacity.isFinite, percent.isFinite else { return nil }
+        let minutes = (max(Double(limit) - percent, 0) / 100 * fullChargeCapacity / amperage * 60).rounded(.up)
+        return Int(exactly: minutes)
     }
 
     /// Energy the battery holds when full, in joules (mAh × V × 3.6).

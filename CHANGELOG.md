@@ -2,6 +2,50 @@
 
 Every release of Forewarn. Versions follow [Semantic Versioning](https://semver.org).
 
+## 1.1.0 (2026-10-28)
+
+### Battery
+- The forecast no longer learns a top-up on power as a gain: its likely range is narrower and its line follows the
+  drain.
+- A forecast made just before you plug in no longer comes back once you are on power, and forecasts run at most every
+  15 minutes, whatever happened to the last one.
+- When the forecast doesn't reach 10%, the popover says how long the battery lasts at least, instead of naming a time.
+- The menu bar shows macOS's time left once the forecast's 10% has passed, and "Full at" and "Empty around" stay put
+  while you browse the popover.
+- Your usual plug-in time is learned by the clock, so a daylight-saving change no longer shifts it by an hour.
+- The charger warning needs readings minutes apart: a quick sleep or relaunch no longer sets it off.
+
+### Battery Health and Disk pages
+- Battery Health: an outlook from measured Maximum Capacity even when the Mac stays plugged in, never below 0%; a
+  battery already under 80% says so instead of forecasting it.
+- Disk: the forecast and the page agree on when there is a week of history, the full date follows the trend line rather
+  than the last reading, and a full disk still gets a chart.
+- Detail pages fit the display the popover is on, also on a second display.
+
+### Warnings
+- A warning macOS fails to show is tried again later, instead of counting as sent.
+- Two checks at the same moment can no longer send the same warning twice.
+- Sleep drain compares only nights spent on battery: a night plugged in is no longer taken as the usual one.
+- Mobile data: an allowance already used up is flagged from the first day of the period.
+- On a Mac without a battery, the menu bar still shows when the disk or mobile data need attention.
+
+### Measurements
+- Nothing measured is lost when a write fails: mobile data, Forewarn's own energy, plug-ins and unplugs are counted
+  again on the next try, and the first-launch import starts over if it was interrupted.
+- Mobile data is counted on the network the expensive connection actually uses, and kept in full for a whole billing
+  period.
+- Hourly and daily summaries weigh every reading equally, and a late reading joins its hour instead of doubling it.
+- Folder sizes are rescanned folder by folder, and the apps keeping the Mac awake are named more reliably.
+
+### Settings
+- Open at login follows System Settings, and says when it waits for your approval there, with a button to open it.
+- Export runs in the background, so Settings stays responsive; Delete also clears the forecast on screen.
+- A language restart that fails keeps Forewarn open and says so. Return in the language list picks the top row.
+
+### Accessibility
+- VoiceOver and Audio Graphs read the likely range of the battery and Battery Health forecasts, the battery level
+  now and your usual plug-in time.
+
 ## 1.0.0 (2026-10-28)
 
 ### Install

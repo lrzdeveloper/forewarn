@@ -43,16 +43,19 @@ public actor TimestralEngine: ForecastEngine {
     }
 
     public func forecast(_ request: ForecastRequest) async throws -> QuantileForecast {
-        guard request.horizon >= 1 else { return QuantileForecast(values: Array(repeating: [], count: 21)) }
+        guard request.horizon >= 0 else { throw ForecastError.negativeHorizon }
+        guard request.horizon > 0 else { return .empty }
         let target = request.target.map { Float($0) }
         guard target.contains(where: \.isFinite) else { throw Failure.noObservations }
         let core = try await loaded()
         let context = Timestral.leftPad(target, to: core.context)
+        // The model sees only its context: observations older than that do not count.
+        guard context.observed.contains(true) else { throw Failure.noObservations }
         let mirror = Timestral.Row(values: context.values.map { -$0 }, observed: context.observed)
         let raw = try Timestral.decode([context, mirror], horizon: request.horizon, patches: core.patches) {
             try core.predict($0)
         }
-        return QuantileForecast(values: Timestral.clampsym(raw[0], raw[1], target: target))
+        return try QuantileForecast(values: Timestral.clampsym(raw[0], raw[1], target: target))
     }
 
     private func loaded() async throws -> Core {
@@ -99,9 +102,18 @@ public actor TimestralEngine: ForecastEngine {
             guard let quantiles = out.featureValue(for: "quantiles")?.shapedArrayValue(of: Float.self) else {
                 throw Failure.badModel("no quantiles output")
             }
+            // decode reads exactly this layout: anything else would trap or quietly shorten the horizon.
+            try Self.check(quantiles.shape, patches: patches)
             let perRow = quantiles.scalarCount / 2
             let scalars = quantiles.scalars
             return [Array(scalars[..<perRow]), Array(scalars[perRow...])]
+        }
+
+        static func check(_ shape: [Int], patches: Int) throws {
+            let expected = [2, patches * Timestral.patchSize, Timestral.quantiles]
+            guard shape == expected else {
+                throw Failure.badModel("quantiles shape \(shape), expected \(expected)")
+            }
         }
     }
 }
@@ -329,12 +341,14 @@ enum Timestral {
 
     /// `TimestralForecaster.forecast` clampsym: average with the reflected mirror forecast, then clamp at 0
     /// when every observed context value is non-negative. Returns `values[level][step]`.
-    static func clampsym(_ q: [Float], _ mirrored: [Float], target: [Float]) -> [[Double]] {
+    /// In Double: two finite Floats near the top of their range overflow when added in Float.
+    static func clampsym(_ q: [Float], _ mirrored: [Float], target: [Float]) throws -> [[Double]] {
         let clip = !target.contains { $0.isFinite && $0 < 0 }
-        return (0 ..< quantiles).map { level in
-            stride(from: 0, to: q.count, by: quantiles).map { step in
-                let value = 0.5 * (q[step + level] + -mirrored[step + quantiles - 1 - level])
-                return Double(clip ? max(value, 0) : value)
+        return try (0 ..< quantiles).map { level in
+            try stride(from: 0, to: q.count, by: quantiles).map { step in
+                let value = 0.5 * (Double(q[step + level]) - Double(mirrored[step + quantiles - 1 - level]))
+                guard value.isFinite else { throw TimestralEngine.Failure.nonFinite }
+                return clip ? max(value, 0) : value
             }
         }
     }

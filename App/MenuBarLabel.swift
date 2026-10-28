@@ -52,11 +52,12 @@ struct MenuBarLabel: View {
             .accessibilityLabel(overview.needsAttention ? String(localized: "Forewarn, needs attention") : "Forewarn")
     }
 
+    /// Attention first: a Mac without a battery still has a disk and mobile data to warn about.
     private var symbol: String {
-        guard let battery = overview.battery else { return iconStyle == .battery ? "internaldrive" : "hourglass" }
         if overview.needsAttention {
             return iconStyle == .battery ? "exclamationmark.triangle.fill" : "hourglass.bottomhalf.filled"
         }
+        guard let battery = overview.battery else { return iconStyle == .battery ? "internaldrive" : "hourglass" }
         guard iconStyle == .battery else { return "hourglass" }
         return battery.isCharging ? "battery.100percent.bolt" : battery.levelSymbol
     }
@@ -65,16 +66,18 @@ struct MenuBarLabel: View {
         overview.battery.map { ($0.percent / 100).formatted(.percent.precision(.fractionLength(0))) }
     }
 
-    /// On battery: until the forecast reaches 10%, else macOS's estimate (which follows current use).
-    /// Charging: macOS's time to full. On power and not charging: nothing.
+    /// On battery: until the forecast reaches 10%, else macOS's estimate (which follows current use). A forecast
+    /// whose 10% is already past gives way to the estimate. Charging: macOS's time to full. On power and not
+    /// charging: nothing. Both counted from when they were measured.
     private var remaining: String? {
         guard let battery = overview.battery else { return nil }
+        let estimate = battery.systemEstimateEnds.map(\.timeIntervalSinceNow)
         let seconds: Double? = if battery.isCharging {
-            battery.systemEstimateMinutes.map { Double($0 * 60) }
+            estimate
         } else if battery.isOnAC {
             nil
         } else {
-            battery.runsLowAt.map(\.timeIntervalSinceNow) ?? battery.systemEstimateMinutes.map { Double($0 * 60) }
+            battery.runsLowAt.map(\.timeIntervalSinceNow).flatMap { $0 > 0 ? $0 : nil } ?? estimate
         }
         guard let seconds, seconds > 0 else { return nil }
         return Duration.seconds(seconds)

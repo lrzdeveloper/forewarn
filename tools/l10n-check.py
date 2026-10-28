@@ -13,12 +13,18 @@ NS = {"x": "urn:oasis:names:tc:xliff:document:1.2"}
 languages = re.findall(r'\("([a-zA-Z-]+)", "', open("App/Language.swift").read())
 required = [code for code in languages if code != "en"]
 catalog = json.load(open("App/Localizable.xcstrings"))["strings"]
+root = ET.parse(sys.argv[1]).getroot()
+files = root.findall("x:file", NS)
+if root.tag != f"{{{NS['x']}}}xliff" or not files:
+    sys.exit("Not an XLIFF 1.2 export: verify the export format.")
 keys = [
     unit.get("id")
-    for file in ET.parse(sys.argv[1]).getroot().findall("x:file", NS)
-    if "InfoPlist" not in file.get("original")
+    for file in files
+    if "InfoPlist" not in file.get("original", "")
     for unit in file.findall(".//x:trans-unit", NS)
 ]
+if not keys:
+    sys.exit("No app strings found in the XLIFF export; verify the export format and contents.")
 missing = {}
 for key in keys:
     localizations = catalog.get(key, {}).get("localizations", {})

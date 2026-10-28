@@ -4538,6 +4538,166 @@
         }
       }
     },
+    "At this pace the battery stays above 10%% for at least the next %lld hours." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При това темпо батерията остава над 10%% поне през следващите %lld часа."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A aquest ritme, la bateria es manté per sobre del 10 %% com a mínim les properes %lld hores."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tímto tempem zůstane baterie nad 10%% nejméně dalších %lld hodin."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I dette tempo holder batteriet sig over 10 %% i mindst de næste %lld timer."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diesem Tempo bleibt die Batterie mindestens die nächsten %lld Stunden über 10 %%."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Με αυτόν τον ρυθμό η μπαταρία μένει πάνω από 10%% για τουλάχιστον τις επόμενες %lld ώρες."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A este ritmo, la batería se mantiene por encima del 10 %% al menos las próximas %lld horas."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selles tempos püsib aku vähemalt järgmised %lld tundi üle 10%%."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tällä tahdilla akku pysyy yli 10 %%:ssa vähintään seuraavat %lld tuntia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À ce rythme, la batterie reste au-dessus de 10 %% pendant au moins les %lld prochaines heures."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ag an ráta seo fanann an ceallra os cionn 10%% ar feadh %lld uair an chloig eile ar a laghad."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ovim tempom baterija ostaje iznad 10%% barem sljedećih %lld h."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ilyen ütemben az akkumulátor legalább a következő %lld órában 10%% felett marad."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A questo ritmo la batteria resta sopra il 10%% almeno per le prossime %lld ore."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokiu tempu akumuliatorius išliks virš 10%% bent artimiausias %lld val."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Šādā tempā akumulators paliks virs 10%% vismaz nākamās %lld st."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "B’dan ir-ritmu l-batterija tibqa’ ’l fuq minn 10%% għal mill-inqas is-%lld siegħa li ġejjin."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I dette tempoet holder batteriet seg over 10 %% i minst de neste %lld timene."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In dit tempo blijft de batterij minstens de komende %lld uur boven 10%%."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W tym tempie bateria utrzyma się powyżej 10%% co najmniej przez następne %lld godz."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A este ritmo, a bateria mantém-se acima dos 10%% durante pelo menos as próximas %lld horas."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În acest ritm, bateria rămâne peste 10%% cel puțin în următoarele %lld h."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Týmto tempom zostane batéria nad 10%% najmenej ďalších %lld hodín."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "S tem tempom ostane baterija nad 10%% vsaj naslednjih %lld ur."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I den här takten håller sig batteriet över 10 %% i minst de kommande %lld timmarna."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "За такого темпу акумулятор залишатиметься вище 10%% щонайменше наступні %lld год."
+          }
+        }
+      }
+    },
     "At this pace, 80%% around %@." : {
       "localizations" : {
         "bg" : {
@@ -14627,6 +14787,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forewarn попросить дозвіл, коли попередження вперше стане в пригоді."
+          }
+        }
+      }
+    },
+    "Forewarn couldn't restart. Try again, or quit Forewarn and open it again." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn не успя да се рестартира. Опитайте отново или излезте от Forewarn и го отворете пак."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No s’ha pogut reiniciar el Forewarn. Torna-ho a provar, o surt del Forewarn i torna’l a obrir."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn se nepodařilo restartovat. Zkuste to znovu, nebo Forewarn ukončete a znovu otevřete."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn kunne ikke genstarte. Prøv igen, eller afslut Forewarn, og åbn den igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn konnte nicht neu starten. Versuche es erneut oder beende Forewarn und öffne es wieder."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν ήταν δυνατή η επανεκκίνηση του Forewarn. Δοκιμάστε ξανά ή κλείστε το Forewarn και ανοίξτε το πάλι."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn no se ha podido reiniciar. Vuelve a intentarlo, o sal de Forewarn y ábrelo de nuevo."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarni ei saanud taaskäivitada. Proovi uuesti või sulge Forewarn ja ava see uuesti."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarnia ei voitu käynnistää uudelleen. Yritä uudelleen tai lopeta Forewarn ja avaa se uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn n’a pas pu redémarrer. Réessayez, ou quittez Forewarn et rouvrez-le."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Níorbh fhéidir Forewarn a atosú. Bain triail eile as, nó scoir de Forewarn agus oscail arís é."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn se nije mogao ponovno pokrenuti. Pokušajte ponovno ili zatvorite Forewarn i ponovno ga otvorite."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Forewarn nem tudott újraindulni. Próbálja újra, vagy lépjen ki a Forewarnból, és nyissa meg újra."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile riavviare Forewarn. Riprova, oppure esci da Forewarn e riaprilo."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nepavyko paleisti Forewarn iš naujo. Bandykite dar kartą arba išeikite iš Forewarn ir vėl jį atidarykite."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn neizdevās restartēt. Mēģiniet vēlreiz vai aizveriet Forewarn un atveriet to no jauna."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn ma setax jerġa’ jibda. Erġa’ pprova, jew oħroġ minn Forewarn u erġa’ iftħu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn kunne ikke starte på nytt. Prøv igjen, eller avslutt Forewarn og åpne den igjen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn kon niet opnieuw starten. Probeer het nog eens, of stop Forewarn en open het opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się ponownie uruchomić Forewarn. Spróbuj jeszcze raz albo zamknij Forewarn i otwórz go ponownie."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível reiniciar o Forewarn. Tente novamente, ou saia do Forewarn e volte a abri-lo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn nu a putut reporni. Încearcă din nou sau închide Forewarn și deschide-l iar."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn sa nepodarilo reštartovať. Skúste to znova alebo Forewarn ukončite a znova otvorte."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarna ni bilo mogoče znova zagnati. Poskusite znova ali zaprite Forewarn in ga znova odprite."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forewarn kunde inte starta om. Försök igen, eller avsluta Forewarn och öppna det igen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося перезапустити Forewarn. Спробуйте ще раз або закрийте Forewarn і відкрийте знову."
           }
         }
       }
@@ -28238,6 +28558,326 @@
         }
       }
     },
+    "Now %@." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сега: %@."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ara: %@."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teď: %@."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt: %@."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τώρα: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ahora: %@."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Praegu: %@."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nyt: %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenant : %@."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anois: %@."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sada: %@."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most: %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adesso: %@."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dabar: %@."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagad: %@."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issa: %@."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nå: %@."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teraz: %@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agora: %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acum: %@."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teraz: %@."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdaj: %@."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %@."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зараз: %@."
+          }
+        }
+      }
+    },
+    "Now %@. Usual plug-in %@." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сега: %1$@. Обичайно зареждане: %2$@."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ara: %1$@. Connexió habitual %2$@."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teď: %1$@. Obvyklé nabíjení: %2$@."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %1$@. Sædvanlig opladning kl. %2$@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt: %1$@. Übliches Laden %2$@."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τώρα: %1$@. Συνήθης σύνδεση %2$@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ahora: %1$@. Carga habitual %2$@."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Praegu: %1$@. Tavapärane laadimine kell %2$@."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nyt: %1$@. Tavallinen latausaika klo %2$@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenant : %1$@. Branchement habituel %2$@."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anois: %1$@. Gnátham plugála %2$@."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sada: %1$@. Uobičajeno punjenje: %2$@."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most: %1$@. Szokásos töltés: %2$@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adesso: %1$@. Ricarica abituale %2$@."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dabar: %1$@. Įprastas prijungimas: %2$@."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagad: %1$@. Parastā uzlāde: %2$@."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Issa: %1$@. Iċċarġjar tas-soltu %2$@."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nå: %1$@. Vanlig lading kl. %2$@."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %1$@. Gebruikelijk laadmoment %2$@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teraz: %1$@. Zwykłe ładowanie: %2$@."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agora: %1$@. Carga habitual %2$@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acum: %1$@. Conectare obișnuită: %2$@."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teraz: %1$@. Obvyklé nabíjanie: %2$@."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdaj: %1$@. Običajno polnjenje: %2$@."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu: %1$@. Vanlig laddning kl. %2$@."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зараз: %1$@. Звичне заряджання: %2$@."
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "bg" : {
@@ -29194,6 +29834,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Відкрити параметри Forewarn"
+          }
+        }
+      }
+    },
+    "Open Login Items Settings" : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвори настройките за елементи за влизане"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obrir la configuració d’Ítems d’inici"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otevřít nastavení položek při přihlášení"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åbn indstillinger for login-emner"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen für Anmeldeobjekte öffnen"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Άνοιγμα ρυθμίσεων στοιχείων σύνδεσης"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir los ajustes de ítems de inicio"
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ava sisselogimisüksuste seaded"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avaa kirjautumiskohteiden asetukset"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les réglages d’ouverture"
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oscail socruithe Login Items"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otvori postavke stavki za prijavu"
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bejelentkezési elemek beállításainak megnyitása"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri le impostazioni di Elementi login"
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atidaryti prisijungimo elementų nustatymus"
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atvērt pieteikšanās vienumu iestatījumus"
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iftaħ is-settings ta’ Login Items"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åpne innstillinger for påloggingsobjekter"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open instellingen voor inlogonderdelen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz ustawienia elementów logowania"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir as definições de elementos de início de sessão"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide configurările articolelor de autentificare"
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otvoriť nastavenia prihlasovacích položiek"
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odpri nastavitve elementov ob prijavi"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öppna inställningar för inloggningsobjekt"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Відкрити параметри елементів входу"
           }
         }
       }
@@ -37371,6 +38171,166 @@
         }
       }
     },
+    "This document is missing from Forewarn. Reinstalling Forewarn restores it." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Този документ липсва във Forewarn. Повторното инсталиране на Forewarn го възстановява."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aquest document no es troba al Forewarn. Si tornes a instal·lar el Forewarn, es restaura."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tento dokument ve Forewarn chybí. Znovu nainstalujte Forewarn a obnoví se."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette dokument mangler i Forewarn. Geninstaller Forewarn for at gendanne det."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Dokument fehlt in Forewarn. Eine erneute Installation von Forewarn stellt es wieder her."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αυτό το έγγραφο λείπει από το Forewarn. Η επανεγκατάσταση του Forewarn το επαναφέρει."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este documento falta en Forewarn. Al reinstalar Forewarn se restaura."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See dokument puudub Forewarnist. Forewarni uuesti installimine taastab selle."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämä dokumentti puuttuu Forewarnista. Asenna Forewarn uudelleen, niin se palautuu."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce document est absent de Forewarn. Réinstallez Forewarn pour le restaurer."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tá an doiciméad seo in easnamh ó Forewarn. Má athshuiteálann tú Forewarn, cuirtear ar ais é."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ovaj dokument nedostaje u Forewarnu. Ponovna instalacija Forewarna ga vraća."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ez a dokumentum hiányzik a Forewarnból. A Forewarn újratelepítése visszaállítja."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo documento manca da Forewarn. Reinstallando Forewarn viene ripristinato."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Šio dokumento Forewarn nėra. Iš naujo įdiegus Forewarn jis atkuriamas."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Šis dokuments Forewarn trūkst. Atkārtoti instalējot Forewarn, tas tiek atjaunots."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dan id-dokument nieqes minn Forewarn. L-installazzjoni mill-ġdid ta’ Forewarn terġa’ ġġibu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette dokumentet mangler i Forewarn. Installer Forewarn på nytt for å gjenopprette det."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit document ontbreekt in Forewarn. Installeer Forewarn opnieuw om het te herstellen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brakuje tego dokumentu w Forewarn. Ponowna instalacja Forewarn go przywróci."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este documento está em falta no Forewarn. Reinstalar o Forewarn repõe-no."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acest document lipsește din Forewarn. Reinstalarea Forewarn îl restabilește."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tento dokument vo Forewarn chýba. Opätovná inštalácia Forewarn ho obnoví."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta dokument v Forewarnu manjka. Ponovna namestitev Forewarna ga obnovi."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det här dokumentet saknas i Forewarn. Installera om Forewarn så återställs det."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Цього документа немає у Forewarn. Повторне встановлення Forewarn його відновить."
+          }
+        }
+      }
+    },
     "Time" : {
       "localizations" : {
         "bg" : {
@@ -40263,6 +41223,166 @@
         }
       }
     },
+    "Waiting for your approval in System Settings › General › Login Items." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очаква вашето одобрение в Системни настройки › Общи › Елементи за влизане."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esperant la teva aprovació a Configuració del Sistema › General › Ítems d’inici."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Čeká na vaše schválení v Nastavení systému › Obecné › Položky při přihlášení."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på din godkendelse i Systemindstillinger › Generelt › Login-emner."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf deine Zustimmung in Systemeinstellungen › Allgemein › Anmeldeobjekte."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Αναμένεται η έγκρισή σας στις Ρυθμίσεις συστήματος › Γενικά › Στοιχεία σύνδεσης."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esperando tu aprobación en Ajustes del Sistema › General › Ítems de inicio."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ootab sinu kinnitust jaotises Süsteemiseaded › Üldine › Sisselogimisüksused."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Odottaa hyväksyntääsi kohdassa Järjestelmäasetukset › Yleiset › Kirjautumiskohteet."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En attente de votre accord dans Réglages Système › Général › Ouverture."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ag fanacht le do cheadú in System Settings › General › Login Items."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Čeka vaše odobrenje u Postavkama sustava › Općenito › Stavke za prijavu."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A jóváhagyására vár a Rendszerbeállítások › Általános › Bejelentkezési elemek alatt."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In attesa della tua approvazione in Impostazioni di Sistema › Generali › Elementi login."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laukiama jūsų patvirtinimo Sistemos nustatymuose › Bendra › Prisijungimo elementai."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gaida jūsu apstiprinājumu sadaļā Sistēmas iestatījumi › Vispārīgi › Pieteikšanās vienumi."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qed jistenna l-approvazzjoni tiegħek f’System Settings › General › Login Items."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på godkjenningen din i Systeminnstillinger › Generelt › Påloggingsobjekter."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wacht op je goedkeuring in Systeeminstellingen › Algemeen › Inlogonderdelen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oczekuje na Twoją zgodę w Ustawieniach systemowych › Ogólne › Elementy logowania."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A aguardar a sua aprovação em Definições do Sistema › Geral › Elementos de início de sessão."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se așteaptă aprobarea ta în Configurări sistem › General › Articole de autentificare."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Čaká na vaše schválenie v Systémových nastaveniach › Všeobecné › Prihlasovacie položky."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Čaka na vašo odobritev v Sistemskih nastavitvah › Splošno › Elementi ob prijavi."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Väntar på ditt godkännande i Systeminställningar › Allmänt › Inloggningsobjekt."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очікує вашого схвалення в Системних параметрах › Загальні › Елементи входу."
+          }
+        }
+      }
+    },
     "Warns before you run out" : {
       "localizations" : {
         "bg" : {
@@ -42499,6 +43619,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Зазвичай ви підключаєте живлення близько %@. Зарядіть, коли зможете."
+          }
+        }
+      }
+    },
+    "You usually plug in at %@, and at this pace the battery stays above 10%% until then." : {
+      "localizations" : {
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обикновено зареждате в %@ и при това темпо батерията остава над 10%% дотогава."
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normalment el connectes a les %@, i a aquest ritme la bateria es manté per sobre del 10 %% fins aleshores."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obvykle nabíjíte v %@ a tímto tempem zůstane baterie do té doby nad 10%%."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du tilslutter normalt strøm kl. %@, og i dette tempo holder batteriet sig over 10 %% indtil da."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du lädst meist um %@, und in diesem Tempo bleibt die Batterie bis dahin über 10 %%."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Συνήθως συνδέετε τον φορτιστή στις %@, και με αυτόν τον ρυθμό η μπαταρία μένει πάνω από 10%% ως τότε."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sueles conectarlo a las %@, y a este ritmo la batería se mantiene por encima del 10 %% hasta entonces."
+          }
+        },
+        "et" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tavaliselt ühendad laadija kell %@ ja selles tempos püsib aku seni üle 10%%."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lataat yleensä klo %@, ja tällä tahdilla akku pysyy siihen asti yli 10 %%:ssa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous branchez d’habitude le Mac à %@, et à ce rythme la batterie reste au-dessus de 10 %% d’ici là."
+          }
+        },
+        "ga" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is gnách leat plugáil isteach ag %@, agus ag an ráta seo fanann an ceallra os cionn 10%% go dtí sin."
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obično punite u %@, a ovim tempom baterija do tada ostaje iznad 10%%."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Általában %@-kor teszi töltőre, és ilyen ütemben az akkumulátor addig 10%% felett marad."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di solito colleghi il Mac alle %@, e a questo ritmo la batteria resta sopra il 10%% fino ad allora."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paprastai prijungiate %@, ir tokiu tempu akumuliatorius iki tol išliks virš 10%%."
+          }
+        },
+        "lv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parasti jūs pievienojat lādētāju %@, un šādā tempā akumulators līdz tam paliks virs 10%%."
+          }
+        },
+        "mt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normalment tqabbad fil-%@, u b’dan ir-ritmu l-batterija tibqa’ ’l fuq minn 10%% sa dakinhar."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du kobler vanligvis til strøm kl. %@, og i dette tempoet holder batteriet seg over 10 %% til da."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je sluit meestal om %@ aan, en in dit tempo blijft de batterij tot dan boven 10%%."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zwykle podłączasz zasilanie o %@, a w tym tempie bateria do tego czasu utrzyma się powyżej 10%%."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Costuma ligar à corrente às %@, e a este ritmo a bateria mantém-se acima dos 10%% até lá."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De obicei conectezi la %@, iar în acest ritm bateria rămâne peste 10%% până atunci."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zvyčajne nabíjate o %@ a týmto tempom zostane batéria dovtedy nad 10%%."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Običajno priključite ob %@ in s tem tempom ostane baterija do takrat nad 10%%."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du brukar ansluta kl. %@, och i den här takten håller sig batteriet över 10 %% tills dess."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зазвичай ви підключаєте живлення о %@, і за такого темпу акумулятор до того часу залишатиметься вище 10%%."
           }
         }
       }

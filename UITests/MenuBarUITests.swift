@@ -291,7 +291,9 @@ final class MenuBarUITests: XCTestCase {
         search.typeText("deu")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Deutsch'")).firstMatch.exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Italiano'")).firstMatch.exists)
-        app.typeKey(.escape, modifierFlags: [])
+        // Return picks the first row shown; in the welcome window that only changes the choice, nothing is saved.
+        search.typeText("\r")
+        XCTAssertEqual(app.buttons["languagePicker"].value as? String, "Deutsch")
     }
 }
 
